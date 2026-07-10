@@ -1,0 +1,57 @@
+*.bak
+*.backup
+*.old
+
+# Local patch backups
+*.bak
+*.bak-*
+*.backup
+*backup*
+*_backup*
+_local_backups/
+# Python virtual environments
+.venv/
+venv/
+backend/.venv/
+
+# Environment secrets
+.env
+.env.*
+backend/.env
+dashboard-web/.env
+dashboard-web/.env.local
+storefront-web/.env
+storefront-web/.env.local
+!.env.example
+!.env.production.example
+!backend/.env.example
+!backend/.env.production.example
+!dashboard-web/.env.example
+!dashboard-web/.env.production.example
+!storefront-web/.env.example
+!storefront-web/.env.production.example
+
+# Runtime/uploads
+backend/static/uploads/
+
+# Local patch backups
+*.bak
+*.bak-*
+*.backup
+*backup*
+*_backup*
+_local_backups/
+
+# Python
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+.next/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
