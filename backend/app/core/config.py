@@ -42,11 +42,15 @@ class Settings(BaseSettings):
             "FRONTEND_URL": self.FRONTEND_URL,
             "BACKEND_PUBLIC_URL": self.BACKEND_PUBLIC_URL,
             "CORS_ORIGINS": self.CORS_ORIGINS,
+            "DATABASE_URL": self.DATABASE_URL,
         }
 
         for name, value in url_values.items():
             if any(marker in value for marker in local_markers):
                 raise ValueError(f"Production {name} cannot contain localhost or local IP addresses.")
+
+        if "postgres:postgres" in self.DATABASE_URL or "CHANGE_ME" in self.DATABASE_URL:
+            raise ValueError("Production DATABASE_URL contains unsafe default or placeholder credentials.")
 
         if not self.PAYSTACK_SECRET_KEY or not self.PAYSTACK_SECRET_KEY.startswith("sk_live_"):
             raise ValueError("Production PAYSTACK_SECRET_KEY must be configured with a live Paystack secret key.")
