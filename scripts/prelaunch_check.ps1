@@ -12,15 +12,15 @@ docker compose up -d backend
 
 Write-Host ""
 Write-Host "2. Backend compile check..." -ForegroundColor Yellow
-docker compose exec backend python -m compileall -q app alembic
+docker compose exec -T backend python -m compileall -q app alembic
 
 Write-Host ""
 Write-Host "3. Alembic current revision..." -ForegroundColor Yellow
-docker compose exec backend alembic current
+docker compose exec -T backend alembic current
 
 Write-Host ""
 Write-Host "4. Backend healthcheck..." -ForegroundColor Yellow
-$health = curl.exe -fsS http://localhost:8000/health
+$health = curl.exe --max-time 15 -fsS http://localhost:8000/health
 Write-Host $health
 
 if ($health -notmatch '"status"\s*:\s*"ok"' -or $health -notmatch '"database"\s*:\s*"ok"') {
