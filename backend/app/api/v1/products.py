@@ -14,6 +14,20 @@ from app.services.plan_features import ensure_plan_allows_image_uploads
 
 router = APIRouter(tags=["products"])
 
+async def lock_store_for_product_limit(db: AsyncSession, store: Store) -> Store:
+    result = await db.execute(
+        select(Store)
+        .where(Store.id == store.id)
+        .with_for_update()
+    )
+
+    locked_store = result.scalar_one_or_none()
+
+    if not locked_store:
+        raise HTTPException(status_code=404, detail="Store not found")
+
+    return locked_store
+
 
 @router.get("/stores/{store_id}/products", response_model=list[ProductResponse])
 async def list_products(
@@ -50,6 +64,7 @@ async def create_product(
         )
 
     if payload.is_active:
+        store = await lock_store_for_product_limit(db, store)
         plan_limit = await get_product_limit_for_store(db, store)
 
         if plan_limit is not None:
@@ -197,6 +212,7 @@ from PIL import Image
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
+from app.services.image_validation import validate_uploaded_image_safety
 
 
 class ProductImageUploadPayload(BaseModel):
@@ -238,6 +254,8 @@ async def upload_product_image(
             detail="Image is too large. Maximum size is 3MB.",
         )
 
+
+    validate_uploaded_image_safety(image_bytes)
     try:
         image = Image.open(io.BytesIO(image_bytes))
         image.verify()

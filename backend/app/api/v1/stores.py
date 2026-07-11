@@ -53,6 +53,8 @@ async def create_store(
         social_links=payload.social_links,
         category=payload.category,
         theme=payload.theme,
+        subscription_status="trial",
+        trial_ends_at=datetime.now(timezone.utc) + timedelta(days=settings.TRIAL_DAYS),
     )
 
     db.add(store)
@@ -158,6 +160,8 @@ async def upload_store_image(
             detail="Image is too large. Maximum size is 3MB.",
         )
 
+
+    validate_uploaded_image_safety(image_bytes)
     try:
         image = Image.open(io.BytesIO(image_bytes))
         image.verify()
@@ -192,6 +196,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
+from app.services.image_validation import validate_uploaded_image_safety
 
 
 class AdminExtendSubscriptionPayload(BaseModel):
@@ -199,7 +204,6 @@ class AdminExtendSubscriptionPayload(BaseModel):
         default=None,
         pattern="^(starter|business|premium|custom)$",
     )
-    monthly_fee: Decimal | None = Field(default=None, ge=0)
     amount_paid: Decimal | None = Field(default=None, ge=0)
     extend_days: int = Field(default=30, ge=1, le=366)
     payment_method: str = Field(default="manual", pattern="^(manual|momo|bank|cash|paystack)$")
@@ -566,7 +570,6 @@ class AdminSubscriptionPlanItem(BaseModel):
 
 class AdminSubscriptionPlanUpdate(BaseModel):
     display_name: str | None = Field(default=None, max_length=100)
-    monthly_fee: Decimal | None = Field(default=None, ge=0)
     product_limit: int | None = Field(default=None, ge=0)
     can_upload_images: bool | None = None
     can_use_custom_domain: bool | None = None
@@ -741,7 +744,6 @@ async def get_store_subscription_usage(
 
 class AdminStorePlanUpdate(BaseModel):
     plan_name: str = Field(min_length=1, max_length=50)
-    monthly_fee: Decimal | None = Field(default=None, ge=0)
 
 
 class AdminStorePlanResponse(BaseModel):

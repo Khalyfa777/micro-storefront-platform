@@ -11,7 +11,9 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me"
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_EXPIRE_MINUTES: int = 30
+    TRIAL_DAYS: int = 14
     DATABASE_URL: str
+    REDIS_URL: str = "redis://redis:6379/0"
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
     PAYSTACK_SECRET_KEY: str = ""
     PAYSTACK_PUBLIC_KEY: str = ""

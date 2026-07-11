@@ -15,7 +15,6 @@ class StoreCreate(BaseModel):
     whatsapp_number: str | None = None
     social_links: dict | None = None
     category: str | None = None
-    can_receive_online_payments: bool = True
     theme: Any = None
 
 
@@ -28,7 +27,6 @@ class StoreUpdate(BaseModel):
     whatsapp_number: str | None = None
     social_links: dict | None = None
     category: str | None = None
-    can_receive_online_payments: bool = True
     theme: Any = None
 
 
@@ -43,7 +41,6 @@ class StoreResponse(BaseModel):
     whatsapp_number: str | None = None
     social_links: dict | None = None
     category: str | None = None
-    can_receive_online_payments: bool = True
     theme: Any = None
     is_active: bool
     is_suspended: bool
@@ -70,5 +67,4 @@ class StorePublicResponse(BaseModel):
     banner_url: str | None = None
     category: str | None = None
 
-    can_receive_online_payments: bool = True
     model_config = ConfigDict(from_attributes=True)

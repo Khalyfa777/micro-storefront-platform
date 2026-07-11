@@ -78,6 +78,7 @@ async def mark_order_paid_and_deduct_inventory(
         locked_transaction.verified_at = datetime.now(timezone.utc)
 
     locked_order.status = "paid"
+    locked_order.payment_method = "paystack"
 
     if not locked_order.inventory_deducted:
         product_ids = [item.product_id for item in locked_order.items]
@@ -245,6 +246,8 @@ async def verify_payment(reference: str, db: AsyncSession = Depends(get_db)):
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
+    store_slug = await get_order_store_slug(db, order)
+
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.get(
             f"https://api.paystack.co/transaction/verify/{reference}",
@@ -279,6 +282,7 @@ async def verify_payment(reference: str, db: AsyncSession = Depends(get_db)):
             "message": "Payment verified successfully",
             "order_id": str(order.id),
             "order_number": order.order_number,
+        "store_slug": store_slug,
             "order_status": order.status,
             "inventory_deducted": order.inventory_deducted,
             "amount": str(order.total),
@@ -294,6 +298,7 @@ async def verify_payment(reference: str, db: AsyncSession = Depends(get_db)):
         "message": "Payment was not successful",
         "order_id": str(order.id),
         "order_number": order.order_number,
+        "store_slug": store_slug,
         "order_status": order.status,
         "inventory_deducted": order.inventory_deducted,
     }

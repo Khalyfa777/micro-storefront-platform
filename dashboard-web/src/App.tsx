@@ -335,6 +335,7 @@ type Order = {
   id: string;
   order_number: string;
   status: string;
+  payment_method?: string | null;
   customer_name: string;
   customer_phone: string;
   customer_email?: string | null;
@@ -482,6 +483,28 @@ function makeSlug(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+const ORDER_STATUS_TRANSITIONS: Record<string, string[]> = {
+  pending: ["paid", "cancelled"],
+  paid: ["processing", "completed", "cancelled"],
+  processing: ["completed", "cancelled"],
+  completed: ["cancelled"],
+  cancelled: [],
+};
+
+function getAllowedOrderStatusActions(status: string): string[] {
+  return ORDER_STATUS_TRANSITIONS[status?.toLowerCase()] || [];
+}
+
+function formatOrderStatusActionLabel(status: string): string {
+  const labels: Record<string, string> = {
+    paid: "Paid",
+    processing: "Processing",
+    completed: "Completed",
+    cancelled: "Cancelled",
+  };
+
+  return labels[status] || status;
+}
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   
@@ -1458,7 +1481,6 @@ try {
         method: "POST",
         body: JSON.stringify({
           plan_name: planName,
-          monthly_fee: defaultMonthlyFee,
           amount_paid: amountPaid,
           extend_days: 30,
           payment_method: cleanMethod,
@@ -1531,7 +1553,6 @@ try {
           method: "POST",
           body: JSON.stringify({
             plan_name: planName,
-          monthly_fee: defaultMonthlyFee,
             amount_paid: amountPaid,
             extend_days: 30,
             payment_method: cleanMethod,
@@ -1981,9 +2002,17 @@ try {
                     </p>
                   </div>
 
-                  <span className={`status ${order.status}`}>
-                    {order.status}
-                  </span>
+                  <div className="order-status-stack">
+                    <span className={`status ${order.status}`}>
+                      {order.status}
+                    </span>
+
+                    {order.payment_method && (
+                      <span className={`payment-method-badge ${order.payment_method}`}>
+                        {order.payment_method === "paystack" ? "Paystack" : "Manual"}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="order-items">
@@ -2011,21 +2040,18 @@ try {
                 </p>
 
                 <div className="actions">
-                  <button onClick={() => updateOrderStatus(order.id, "pending")}>
-                    Pending
-                  </button>
-                  <button onClick={() => confirmManualPayment(order.id)}>
-                    Paid
-                  </button>
-                  <button onClick={() => updateOrderStatus(order.id, "processing")}>
-                    Processing
-                  </button>
-                  <button onClick={() => updateOrderStatus(order.id, "completed")}>
-                    Completed
-                  </button>
-                  <button onClick={() => updateOrderStatus(order.id, "cancelled")}>
-                    Cancelled
-                  </button>
+                  {getAllowedOrderStatusActions(order.status).map((nextStatus) => (
+                    <button
+                      key={nextStatus}
+                      onClick={() =>
+                        nextStatus === "paid"
+                          ? confirmManualPayment(order.id)
+                          : updateOrderStatus(order.id, nextStatus)
+                      }
+                    >
+                      {formatOrderStatusActionLabel(nextStatus)}
+                    </button>
+                  ))}
                 </div>
               </article>
             ))}

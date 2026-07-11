@@ -7,6 +7,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1
 export default function PaymentProcessingPage() {
   const [status, setStatus] = useState("Verifying your payment...");
   const [orderNumber, setOrderNumber] = useState("");
+  const [storeSlug, setStoreSlug] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -23,6 +24,8 @@ export default function PaymentProcessingPage() {
       try {
         const res = await fetch(`${API_URL}/payments/verify/${reference}`);
         const data = await res.json();
+
+        setStoreSlug(data.store_slug || "");
 
         if (!res.ok) {
           throw new Error(data.detail || "Could not verify payment");
@@ -57,7 +60,7 @@ export default function PaymentProcessingPage() {
 
         {error && <p>{error}</p>}
 
-        <a className="btn btn-light" href="/tgfashion">
+        <a className="btn btn-light" href={storeSlug ? `/${storeSlug}` : "/track"}>
           Back to store
         </a>
       </div>

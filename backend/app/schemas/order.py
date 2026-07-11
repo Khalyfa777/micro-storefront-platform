@@ -42,6 +42,7 @@ class OrderResponse(BaseModel):
     store_slug: str | None = None
     order_number: str
     status: str
+    payment_method: str | None = None
     inventory_deducted: bool = False
     is_oversold: bool = False
     customer_name: str

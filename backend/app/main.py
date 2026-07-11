@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from sqlalchemy import text
 from fastapi.staticfiles import StaticFiles
 import os
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,13 +15,30 @@ app.include_router(api_router)
 
 @app.on_event("startup")
 async def startup():
-    # MVP convenience only. Replace with Alembic migrations before production.
+    if settings.ENVIRONMENT != "development":
+        return
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+
+        return {
+            "status": "ok",
+            "database": "ok",
+        }
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "error",
+                "database": "unavailable",
+            },
+        )
 
 os.makedirs("static/uploads/products", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")

@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models import User
 from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse
+from app.services.auth_rate_limit import clear_login_rate_limit, enforce_login_rate_limit
 from app.core.security import hash_password, verify_password, create_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -20,7 +21,8 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
     return TokenResponse(access_token=create_access_token(str(user.id), user.role))
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(request: Request, payload: LoginRequest, db: AsyncSession = Depends(get_db)):
+    await enforce_login_rate_limit(request, payload.email)
     result = await db.execute(select(User).where(User.email == payload.email.lower()))
     user = result.scalar_one_or_none()
     if not user or not verify_password(payload.password, user.password_hash):

@@ -17,6 +17,7 @@ class Order(Base):
 
     order_number: Mapped[str] = mapped_column(String(30), unique=True, index=True, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    payment_method: Mapped[str | None] = mapped_column(String(30), nullable=True)
     inventory_deducted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_oversold: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     customer_name: Mapped[str] = mapped_column(String(255), nullable=False)

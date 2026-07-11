@@ -15,6 +15,38 @@ from app.services.subscription import get_store_access_error
 
 router = APIRouter(tags=["orders"])
 
+ORDER_STATUS_TRANSITIONS = {
+    "pending": {"paid", "cancelled"},
+    "paid": {"processing", "completed", "cancelled"},
+    "processing": {"completed", "cancelled"},
+    "completed": {"cancelled"},
+    "cancelled": set(),
+}
+
+
+def ensure_order_status_transition_allowed(current_status: str, new_status: str) -> None:
+    current = (current_status or "").lower()
+    new = (new_status or "").lower()
+
+    if current == new:
+        return
+
+    allowed_next_statuses = ORDER_STATUS_TRANSITIONS.get(current)
+
+    if allowed_next_statuses is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown current order status: {current_status}",
+        )
+
+    if new not in allowed_next_statuses:
+        allowed_display = ", ".join(sorted(allowed_next_statuses)) or "no further changes"
+
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid order status transition from {current} to {new}. Allowed next status: {allowed_display}.",
+        )
+
 
 def generate_order_number() -> str:
     return f"ORD-{uuid4().hex[:10].upper()}"
@@ -203,9 +235,19 @@ async def update_order_status(
         raise HTTPException(status_code=404, detail="Order not found")
 
     new_status = payload.status.lower()
+    previous_status = order.status
+    ensure_order_status_transition_allowed(previous_status, new_status)
     should_deduct_inventory = new_status == "paid" and not order.inventory_deducted
+    should_restore_inventory = (
+        new_status == "cancelled"
+        and order.inventory_deducted
+        and previous_status in {"paid", "processing", "completed"}
+    )
 
     order.status = new_status
+
+    if new_status == "paid" and not order.payment_method:
+        order.payment_method = "manual"
 
     if should_deduct_inventory:
         for item in order.items:
@@ -237,6 +279,29 @@ async def update_order_status(
 
         order.inventory_deducted = True
 
+    if should_restore_inventory:
+        for item in order.items:
+            product_result = await db.execute(
+                select(Product)
+                .where(
+                    Product.id == item.product_id,
+                    Product.store_id == store.id,
+                )
+                .with_for_update()
+            )
+
+            product = product_result.scalar_one_or_none()
+
+            if not product:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Product not found for order item: {item.product_name}",
+                )
+
+            if product.stock_quantity is not None:
+                product.stock_quantity += item.quantity
+
+        order.inventory_deducted = False
     await db.commit()
     await db.refresh(order)
 
