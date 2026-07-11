@@ -67,3 +67,24 @@ Never rely on create_all in production.
 14. Dashboard build passes.
 15. Storefront build passes.
 16. Backend compile passes.
+## Production Docker Compose
+
+Template file:
+docker-compose.prod.example.yml
+
+On the production server:
+1. Copy backend/.env.production.compose.example to backend/.env.production.
+2. Fill in real production values.
+3. Run:
+docker compose -f docker-compose.prod.example.yml up -d --build
+
+The backend command runs:
+alembic upgrade head
+then starts gunicorn.
+
+Persistent volumes:
+- postgres_data
+- redis_data
+- backend_uploads
+
+Do not expose Postgres or Redis ports publicly.
