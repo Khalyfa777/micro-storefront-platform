@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { LoginPage } from "./pages/LoginPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { ProductsPage } from "./pages/ProductsPage";
+import { StoreProfilePage } from "./pages/StoreProfilePage";
 import { Sidebar } from "./layouts/Sidebar";
 import { DashboardShell } from "./layouts/DashboardShell";
 import "./App.css";
@@ -2101,19 +2102,38 @@ try {
           />
         )}
 
-        {(activeTab === "settings" || activeTab === "adminSummary" || activeTab === "adminSellers" || activeTab === "adminPlans" || activeTab === "adminPayments") && (
-          <div className={activeTab === "settings" ? "settings-layout store-profile-page" : `settings-layout admin-layout admin-page-${activeTab}`}>
+        {activeTab === "settings" && (
+          <StoreProfilePage
+            selectedStore={selectedStore}
+            storeForm={storeForm}
+            setStoreForm={setStoreForm}
+            subscriptionUsage={subscriptionUsage}
+            loadingSubscriptionUsage={loadingSubscriptionUsage}
+            saveStoreSettings={saveStoreSettings}
+            makeSlug={makeSlug}
+            uploadStoreImage={uploadStoreImage}
+            formatPlanName={formatPlanName}
+            getComputedSubscriptionStatus={getComputedSubscriptionStatus}
+            formatMonthlyFee={formatMonthlyFee}
+            formatSubscriptionDate={formatSubscriptionDate}
+            formatProductUsageLabel={formatProductUsageLabel}
+            getProductUsageClass={getProductUsageClass}
+            getProductUsagePercent={getProductUsagePercent}
+            formatRemainingProducts={formatRemainingProducts}
+          />
+        )}
+
+        {isPlatformAdmin && (activeTab === "adminSummary" || activeTab === "adminSellers" || activeTab === "adminPlans" || activeTab === "adminPayments") && (
+          <div className={`settings-layout admin-layout admin-page-${activeTab}`}>
             <form className="settings-card" onSubmit={saveStoreSettings}>
               <h2>
-                {activeTab === "settings"
-                  ? "Store profile"
-                  : activeTab === "adminSummary"
-                    ? "Business overview"
-                    : activeTab === "adminSellers"
-                      ? "Seller management"
-                      : activeTab === "adminPlans"
-                        ? "Plan settings"
-                        : "Payments"}
+                {activeTab === "adminSummary"
+                  ? "Business overview"
+                  : activeTab === "adminSellers"
+                    ? "Seller management"
+                    : activeTab === "adminPlans"
+                      ? "Plan settings"
+                      : "Payments"}
               </h2>
 
               
@@ -2772,140 +2792,10 @@ try {
                       )}
                     </>)}
                 </div>
-              )}<label>
-                Store name
-                <input
-                  value={storeForm.name}
-                  onChange={(e) =>
-                    setStoreForm((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                  placeholder="THE GAME Store"
-                  required
-                />
-              </label>
-
-              <label>
-                Store slug
-                <input
-                  value={storeForm.slug}
-                  onChange={(e) =>
-                    setStoreForm((prev) => ({
-                      ...prev,
-                      slug: makeSlug(e.target.value),
-                    }))
-                  }
-                  placeholder="thegame"
-                  required
-                />
-              </label>
-
-              <label>
-                Bio
-                <textarea
-                  value={storeForm.bio}
-                  onChange={(e) =>
-                    setStoreForm((prev) => ({ ...prev, bio: e.target.value }))
-                  }
-                  placeholder="Tell customers what your store sells."
-                />
-              </label>
-
-              <label>
-                WhatsApp number
-                <input
-                  value={storeForm.whatsapp_number}
-                  onChange={(e) =>
-                    setStoreForm((prev) => ({
-                      ...prev,
-                      whatsapp_number: e.target.value,
-                    }))
-                  }
-                  placeholder="233544193559"
-                />
-              </label>              {subscriptionUsage?.can_upload_images === false && (
-                <p className="plan-restriction-note">
-                  Logo and banner uploads are disabled on your current plan. Upgrade to enable store branding images.
-                </p>
               )}
 
-
-                            <label>
-                Store logo
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  disabled={loadingSubscriptionUsage || subscriptionUsage?.can_upload_images === false}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-
-                    if (file) {
-                      uploadStoreImage(file, "logo");
-                    }
-                  }}
-                />
-              </label>
-
-              {storeForm.logo_url && (
-                <div className="uploaded-image-preview">
-                  <img src={storeForm.logo_url} alt="Store logo preview" />
-                  <p>Logo uploaded successfully</p>
-                </div>
-              )}
-
-                            <label>
-                Store banner
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  disabled={loadingSubscriptionUsage || subscriptionUsage?.can_upload_images === false}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-
-                    if (file) {
-                      uploadStoreImage(file, "banner");
-                    }
-                  }}
-                />
-              </label>
-
-              {storeForm.banner_url && (
-                <div className="uploaded-image-preview">
-                  <img src={storeForm.banner_url} alt="Store banner preview" />
-                  <p>Banner uploaded successfully</p>
-                </div>
-              )}
-
-              <label>
-                Category
-                <input
-                  value={storeForm.category}
-                  onChange={(e) =>
-                    setStoreForm((prev) => ({ ...prev, category: e.target.value }))
-                  }
-                  placeholder="Fashion"
-                />
-              </label>
-
-              <button type="submit">Save store settings</button>
             </form>
 
-            <aside className="settings-preview">
-              <h2>Preview</h2>
-
-              {storeForm.banner_url && (
-                <img className="banner-preview" src={storeForm.banner_url} alt="Store banner" />
-              )}
-
-              {storeForm.logo_url && (
-                <img className="logo-preview" src={storeForm.logo_url} alt="Store logo" />
-              )}
-
-              <h3>{storeForm.name || "Store name"}</h3>
-              <p className="muted">/{storeForm.slug || "store-slug"}</p>
-              <p>{storeForm.bio || "Store bio will appear here."}</p>
-              <p>WhatsApp: {storeForm.whatsapp_number || "Not added"}</p>
-              <p>Category: {storeForm.category || "Not added"}</p>
-            </aside>
           </div>
         )}
     </DashboardShell>
