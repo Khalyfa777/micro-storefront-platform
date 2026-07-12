@@ -102,7 +102,7 @@ export function OrdersPage({
       ))}
 
       {orders.length > 0 && (
-        <p className="orders-end-note">You�ve reached the end</p>
+        <p className="orders-end-note">End of orders</p>
       )}
     </div>
   );
