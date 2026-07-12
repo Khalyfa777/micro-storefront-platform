@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { LoginPage } from "./pages/LoginPage";
 import { Sidebar } from "./layouts/Sidebar";
+import { DashboardShell } from "./layouts/DashboardShell";
 import "./App.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
@@ -1946,49 +1947,35 @@ try {
   }
 
   return (
-    <main className={isSidebarOpen ? "dashboard sidebar-open" : "dashboard"}>
-            <div className="mobile-shell-bar">
-        <button
-          type="button"
-          className="mobile-menu-button"
-          onClick={() => setIsSidebarOpen(true)}
-          aria-label="Open dashboard menu"
-        >
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
-
-        <div className="mobile-shell-title">
-          <strong>StorePlug</strong>
-          <span>{selectedStore?.name || "Merchant dashboard"}</span>
-        </div>
-      </div>
-
-      <Sidebar
-        isSidebarOpen={isSidebarOpen}
-        selectedStore={selectedStore}
-        stores={stores}
-        activeTab={activeTab}
-        isPlatformAdmin={isPlatformAdmin}
-        publicStoreUrl={PUBLIC_STORE_URL}
-        onClose={() => setIsSidebarOpen(false)}
-        onSelectStore={(storeId) => {
-          const store = stores.find((item) => item.id === storeId);
-          setSelectedStore(store || null);
-        }}
-        onOpenTab={(tab) => {
-          setActiveTab(tab);
-          setIsSidebarOpen(false);
-        }}
-        onLoadAdminSubscriptionSummary={loadAdminSubscriptionSummary}
-        onLoadAdminStores={loadAdminStores}
-        onLoadAdminSubscriptionPayments={loadAdminSubscriptionPayments}
-        onLoadSubscriptionPlans={loadSubscriptionPlans}
-        onLogout={logout}
-      />
-
-      <section className="content">
+    <DashboardShell
+      isSidebarOpen={isSidebarOpen}
+      selectedStoreName={selectedStore?.name || "Merchant dashboard"}
+      onOpenSidebar={() => setIsSidebarOpen(true)}
+      sidebar={
+        <Sidebar
+          isSidebarOpen={isSidebarOpen}
+          selectedStore={selectedStore}
+          stores={stores}
+          activeTab={activeTab}
+          isPlatformAdmin={isPlatformAdmin}
+          publicStoreUrl={PUBLIC_STORE_URL}
+          onClose={() => setIsSidebarOpen(false)}
+          onSelectStore={(storeId) => {
+            const store = stores.find((item) => item.id === storeId);
+            setSelectedStore(store || null);
+          }}
+          onOpenTab={(tab) => {
+            setActiveTab(tab);
+            setIsSidebarOpen(false);
+          }}
+          onLoadAdminSubscriptionSummary={loadAdminSubscriptionSummary}
+          onLoadAdminStores={loadAdminStores}
+          onLoadAdminSubscriptionPayments={loadAdminSubscriptionPayments}
+          onLoadSubscriptionPlans={loadSubscriptionPlans}
+          onLogout={logout}
+        />
+      }
+    >
         <div className={`topbar topbar-${activeTab}`}>
           <div>
             <h1>
@@ -3232,7 +3219,6 @@ try {
             </aside>
           </div>
         )}
-      </section>
-    </main>
+    </DashboardShell>
   );
 }
