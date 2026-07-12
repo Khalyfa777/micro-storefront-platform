@@ -1,0 +1,203 @@
+
+
+/* StorePlug premium polish pass 2 */
+
+/* Premium shell/header depth */
+.mobile-shell-bar {
+  background: linear-gradient(180deg, #111c34 0%, #0f172a 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 4px 16px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Better page title/subtitle rhythm */
+.topbar h1 {
+  margin-bottom: 8px !important;
+}
+
+.topbar .muted {
+  color: rgba(16, 24, 40, 0.56) !important;
+  line-height: 1.5 !important;
+}
+
+/* Standard horizontal chip/tab-row pattern */
+.admin-store-filters,
+.subscription-payment-filters {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 8px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: none !important;
+  padding: 0 16px 4px !important;
+  margin-left: -16px !important;
+  margin-right: -16px !important;
+  max-width: calc(100% + 32px) !important;
+}
+
+.admin-store-filters::-webkit-scrollbar,
+.subscription-payment-filters::-webkit-scrollbar {
+  display: none !important;
+}
+
+.admin-store-filters > *,
+.subscription-payment-filters > * {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+}
+
+/* Keep filter text fully readable */
+.admin-store-filters button,
+.subscription-payment-filters button {
+  min-width: max-content !important;
+  padding: 10px 16px !important;
+}
+
+/* Parent card vs inner card hierarchy */
+.admin-layout .settings-card {
+  background: #ffffff !important;
+  padding: 24px !important;
+}
+
+.admin-layout .settings-card > .admin-stores-panel,
+.admin-layout .settings-card > .admin-plans-panel,
+.admin-layout .settings-card > .admin-summary-panel {
+  background: #fafbfc !important;
+  padding: 16px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(16, 24, 40, 0.06) !important;
+  box-shadow: none !important;
+}
+
+/* Form-heavy screen premium input feel */
+.settings-card input,
+.settings-card textarea,
+.settings-card select,
+.product-form input,
+.product-form textarea,
+.product-form select,
+.admin-store-search input {
+  padding: 12px 14px !important;
+  border: 1px solid rgba(16, 24, 40, 0.12) !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease !important;
+}
+
+.settings-card input:focus,
+.settings-card textarea:focus,
+.settings-card select:focus,
+.product-form input:focus,
+.product-form textarea:focus,
+.product-form select:focus,
+.admin-store-search input:focus {
+  border-color: #1e2b4d !important;
+  box-shadow: 0 0 0 3px rgba(30, 43, 77, 0.12) !important;
+  outline: none !important;
+}
+
+/* Premium text scale for micro labels */
+.admin-store-card span,
+.product-card-stats span,
+.item-row.total span,
+.settings-card label,
+.plan-settings-card label {
+  letter-spacing: 0.04em !important;
+}
+
+.admin-store-card > div > span,
+.product-card-stats span,
+.item-row.total span {
+  text-transform: uppercase !important;
+  font-size: 12px !important;
+  line-height: 16px !important;
+  font-weight: 700 !important;
+  color: rgba(16, 24, 40, 0.55) !important;
+}
+
+/* Desaturate success/warning/danger surfaces */
+.admin-summary-card.good,
+.status.paid,
+.status.completed,
+.active-pill,
+.plan-feature-chip.enabled {
+  background: #ecfdf3 !important;
+  color: #067647 !important;
+  border-color: #abefc6 !important;
+}
+
+.admin-summary-card.danger,
+.status.cancelled,
+.inactive-pill,
+.plan-feature-chip.disabled {
+  background: #fef3f2 !important;
+  color: #b42318 !important;
+  border-color: #fecdca !important;
+}
+
+.admin-summary-card.warning,
+.status.pending,
+.status.processing,
+.featured-pill,
+.payment-method-badge.manual {
+  background: #fffaeb !important;
+  color: #b54708 !important;
+  border-color: #fedf89 !important;
+}
+
+/* Motion */
+button,
+.nav-btn,
+.product-card,
+.order-card,
+.admin-store-card,
+.plan-settings-card {
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.10s ease !important;
+}
+
+button:active,
+.nav-btn:active,
+.product-card:active,
+.order-card:active,
+.admin-store-card:active {
+  transform: scale(0.985) !important;
+}
+
+/* Order list should not feel unfinished */
+.orders-end-note {
+  margin: 18px auto 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(16, 24, 40, 0.36);
+}
+
+/* Mobile tightening */
+@media (max-width: 820px) {
+  .admin-layout .settings-card {
+    padding: 18px !important;
+  }
+
+  .admin-layout .settings-card > .admin-stores-panel,
+  .admin-layout .settings-card > .admin-plans-panel,
+  .admin-layout .settings-card > .admin-summary-panel {
+    padding: 14px !important;
+  }
+
+  .topbar {
+    padding-top: 24px !important;
+    padding-bottom: 24px !important;
+  }
+
+  .topbar .muted {
+    max-width: 26rem !important;
+  }
+}
