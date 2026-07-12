@@ -2,12 +2,65 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>dashboard-web</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="/favicon.svg"
+    />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>StorePlug</title>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+
+    <script>
+      (() => {
+        const normalizedPath =
+          window.location.pathname.replace(
+            /\/+$/,
+            "",
+          );
+
+        if (
+          normalizedPath !== "/accept-invite"
+        ) {
+          return;
+        }
+
+        const fragment =
+          window.location.hash.startsWith("#")
+            ? window.location.hash.slice(1)
+            : window.location.hash;
+
+        const parameters =
+          new URLSearchParams(fragment);
+
+        const token = parameters.get("token");
+
+        if (
+          token &&
+          token.length >= 20 &&
+          token.length <= 512
+        ) {
+          window.__STOREPLUG_INVITATION_TOKEN__ =
+            token;
+        }
+
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname +
+            window.location.search,
+        );
+      })();
+    </script>
+
+    <script
+      type="module"
+      src="/src/main.tsx"
+    ></script>
   </body>
 </html>

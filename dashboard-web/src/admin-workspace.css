@@ -1239,3 +1239,11 @@ body {
   touch-action: manipulation;
 }
 
+/* Phase 4B3 admin invited icon polish */
+
+.seller-created-icon svg {
+  width: 28px;
+  height: 28px;
+  overflow: visible;
+}
+
