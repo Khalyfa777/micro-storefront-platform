@@ -6,23 +6,53 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
+    DASHBOARD_PUBLIC_URL: str = "http://localhost:5173"
     BACKEND_PUBLIC_URL: str = "http://localhost:8000"
+
     ENVIRONMENT: str = "development"
     SECRET_KEY: str = "change-me"
+
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_EXPIRE_MINUTES: int = 30
+
     TRIAL_DAYS: int = 14
+
+    PUBLIC_REGISTRATION_ENABLED: bool = False
+    SELLER_INVITATION_EXPIRE_HOURS: int = 72
+    SELLER_INVITATION_RATE_LIMIT_ATTEMPTS: int = 10
+    SELLER_INVITATION_RATE_LIMIT_WINDOW_SECONDS: int = 300
+    TRUST_PROXY_HEADERS: bool = False
+
     DATABASE_URL: str
     REDIS_URL: str = "redis://redis:6379/0"
+
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+
     PAYSTACK_SECRET_KEY: str = ""
     PAYSTACK_PUBLIC_KEY: str = ""
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+    )
 
     @model_validator(mode="after")
-    def validate_production_settings(self):
+    def validate_settings(self):
+        if self.SELLER_INVITATION_EXPIRE_HOURS <= 0:
+            raise ValueError(
+                "SELLER_INVITATION_EXPIRE_HOURS must be greater than zero."
+            )
+
+        if self.SELLER_INVITATION_RATE_LIMIT_ATTEMPTS <= 0:
+            raise ValueError(
+                "SELLER_INVITATION_RATE_LIMIT_ATTEMPTS must be greater than zero."
+            )
+
+        if self.SELLER_INVITATION_RATE_LIMIT_WINDOW_SECONDS <= 0:
+            raise ValueError(
+                "SELLER_INVITATION_RATE_LIMIT_WINDOW_SECONDS must be greater than zero."
+            )
+
         if self.ENVIRONMENT.lower() != "production":
             return self
 
@@ -34,12 +64,20 @@ class Settings(BaseSettings):
         }
 
         if self.SECRET_KEY in weak_secret_keys or len(self.SECRET_KEY) < 32:
-            raise ValueError("Production SECRET_KEY must be a strong random value of at least 32 characters.")
+            raise ValueError(
+                "Production SECRET_KEY must be a strong random value "
+                "of at least 32 characters."
+            )
 
-        local_markers = ["localhost", "127.0.0.1", "0.0.0.0"]
+        local_markers = [
+            "localhost",
+            "127.0.0.1",
+            "0.0.0.0",
+        ]
 
         url_values = {
             "FRONTEND_URL": self.FRONTEND_URL,
+            "DASHBOARD_PUBLIC_URL": self.DASHBOARD_PUBLIC_URL,
             "BACKEND_PUBLIC_URL": self.BACKEND_PUBLIC_URL,
             "CORS_ORIGINS": self.CORS_ORIGINS,
             "DATABASE_URL": self.DATABASE_URL,
@@ -47,18 +85,40 @@ class Settings(BaseSettings):
 
         for name, value in url_values.items():
             if any(marker in value for marker in local_markers):
-                raise ValueError(f"Production {name} cannot contain localhost or local IP addresses.")
+                raise ValueError(
+                    f"Production {name} cannot contain localhost "
+                    "or local IP addresses."
+                )
 
-        if "postgres:postgres" in self.DATABASE_URL or "CHANGE_ME" in self.DATABASE_URL:
-            raise ValueError("Production DATABASE_URL contains unsafe default or placeholder credentials.")
+        if (
+            "postgres:postgres" in self.DATABASE_URL
+            or "CHANGE_ME" in self.DATABASE_URL
+        ):
+            raise ValueError(
+                "Production DATABASE_URL contains unsafe default "
+                "or placeholder credentials."
+            )
 
-        if not self.PAYSTACK_SECRET_KEY or not self.PAYSTACK_SECRET_KEY.startswith("sk_live_"):
-            raise ValueError("Production PAYSTACK_SECRET_KEY must be configured with a live Paystack secret key.")
+        if (
+            not self.PAYSTACK_SECRET_KEY
+            or not self.PAYSTACK_SECRET_KEY.startswith("sk_live_")
+        ):
+            raise ValueError(
+                "Production PAYSTACK_SECRET_KEY must be configured "
+                "with a live Paystack secret key."
+            )
 
-        if not self.PAYSTACK_PUBLIC_KEY or not self.PAYSTACK_PUBLIC_KEY.startswith("pk_live_"):
-            raise ValueError("Production PAYSTACK_PUBLIC_KEY must be configured with a live Paystack public key.")
+        if (
+            not self.PAYSTACK_PUBLIC_KEY
+            or not self.PAYSTACK_PUBLIC_KEY.startswith("pk_live_")
+        ):
+            raise ValueError(
+                "Production PAYSTACK_PUBLIC_KEY must be configured "
+                "with a live Paystack public key."
+            )
 
         return self
+
     @property
     def cors_list(self) -> list[str]:
         return [
