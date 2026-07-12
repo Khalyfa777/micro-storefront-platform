@@ -1,3 +1,4 @@
+import { AdminSellerDetailPage } from "./AdminSellerDetailPage";
 import {
   useEffect,
   useMemo,
@@ -289,6 +290,29 @@ function clearStoredSellerDraft() {
 }
 
 
+function getSellerInitials(
+  name: string,
+): string {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return "SP";
+  }
+
+  if (parts.length === 1) {
+    return parts[0][0].toUpperCase();
+  }
+
+  return (
+    parts[0][0] +
+    parts[parts.length - 1][0]
+  ).toUpperCase();
+}
+
+
 function formatLabel(
   value: string,
 ): string {
@@ -418,7 +442,7 @@ export function AdminSellersPage({
   subscriptionPlans,
 }: AdminSellersPageProps) {
   const [view, setView] = useState<
-    "list" | "create" | "created"
+    "list" | "create" | "created" | "detail"
   >(() =>
     readStoredSellerDraft()
       ? "create"
@@ -458,6 +482,11 @@ export function AdminSellersPage({
     >(null);
 
   const [copied, setCopied] = useState(false);
+
+  const [
+    selectedSellerId,
+    setSelectedSellerId,
+  ] = useState<string | null>(null);
 
   useEffect(() => {
     if (view !== "create") {
@@ -550,6 +579,30 @@ export function AdminSellersPage({
       ...current,
       [field]: value,
     }));
+  }
+
+  function openSellerDetail(
+    sellerId: string,
+  ) {
+    setSelectedSellerId(sellerId);
+    setView("detail");
+
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto",
+    });
+  }
+
+  function closeSellerDetail() {
+    setSelectedSellerId(null);
+    setView("list");
+
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto",
+    });
   }
 
   function openCreateView() {
@@ -694,6 +747,22 @@ export function AdminSellersPage({
           : "Could not copy the invitation link.",
       );
     }
+  }
+
+  if (
+    view === "detail" &&
+    selectedSellerId
+  ) {
+    return (
+      <AdminSellerDetailPage
+        sellerId={selectedSellerId}
+        apiFetch={apiFetch}
+        onBack={closeSellerDetail}
+        onSellerChanged={() =>
+          loadAdminSellers(false)
+        }
+      />
+    );
   }
 
   if (
@@ -1315,12 +1384,7 @@ export function AdminSellersPage({
               >
                 <div className="seller-account-identity">
                   <div className="seller-avatar">
-                    {seller.full_name
-                      .split(/\s+/)
-                      .slice(0, 2)
-                      .map((part) => part[0])
-                      .join("")
-                      .toUpperCase()}
+                    {getSellerInitials(seller.full_name)}
                   </div>
 
                   <div>
@@ -1398,6 +1462,35 @@ export function AdminSellersPage({
                     </strong>
                   </div>
                 </div>
+                <div className="seller-account-card-actions">
+                  <button
+                    type="button"
+                    className="seller-view-button"
+                    onClick={() =>
+                      openSellerDetail(
+                        seller.seller_id,
+                      )
+                    }
+                    aria-label={`View ${seller.full_name}`}
+                  >
+                    <span>View seller</span>
+
+                    <svg
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="m9 5 7 7-7 7"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+
               </article>
             );
           })}

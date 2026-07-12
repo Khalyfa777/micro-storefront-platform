@@ -85,3 +85,74 @@ export type AdminSellerCreateResponse = {
   invitation_expires_at: string;
   invitation_url: string;
 };
+
+export type AdminSellerAccountEventSummary = {
+  id: string;
+  action: "suspend" | "reactivate";
+  previous_account_status:
+    | "active"
+    | "suspended";
+  new_account_status:
+    | "active"
+    | "suspended";
+  reason: string | null;
+  actor_user_id: string | null;
+  actor_email: string | null;
+  created_at: string;
+};
+
+export type AdminSellerDetailResponse = {
+  seller_id: string;
+  full_name: string;
+  email: string;
+  phone_number: string | null;
+
+  account_status: SellerAccountStatus;
+  setup_status: SellerSetupStatus;
+  invitation_status: SellerInvitationStatus;
+
+  is_active: boolean;
+  is_verified: boolean;
+  has_password: boolean;
+
+  latest_invitation:
+    | AdminSellerInvitationSummary
+    | null;
+
+  invitation_count: number;
+  invitations: AdminSellerInvitationSummary[];
+
+  store_count: number;
+  stores: AdminSellerStoreSummary[];
+
+  account_event_count: number;
+  account_events:
+    AdminSellerAccountEventSummary[];
+
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminSellerAccountActionResponse = {
+  seller_id: string;
+  event_id: string;
+  account_status: "active" | "suspended";
+  is_active: boolean;
+  is_verified: boolean;
+  updated_at: string;
+};
+
+export type AdminSellerInvitationRegenerateResponse = {
+  seller_id: string;
+  store_id: string;
+  invitation_id: string;
+  invitation_expires_at: string;
+  invitation_url: string;
+};
+
+export type AdminSellerOnboardingCancelResponse = {
+  seller_id: string;
+  invitation_id: string;
+  onboarding_status: "cancelled";
+  revoked_at: string;
+};
