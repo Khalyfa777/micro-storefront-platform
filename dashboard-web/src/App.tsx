@@ -7,6 +7,10 @@ import { AdminSummaryPage } from "./pages/AdminSummaryPage";
 import { AdminPlansPage } from "./pages/AdminPlansPage";
 import { AdminPaymentsPage } from "./pages/AdminPaymentsPage";
 import { AdminSellersPage } from "./pages/AdminSellersPage";
+import type {
+  AdminSellerListItem,
+  AdminSellerListResponse,
+} from "./types/admin-seller";
 import { Sidebar } from "./layouts/Sidebar";
 import { DashboardShell } from "./layouts/DashboardShell";
 import "./App.css";
@@ -595,6 +599,34 @@ const [email, setEmail] = useState("");
   
   
   const [adminStores, setAdminStores] = useState<AdminStoreListItem[]>([]);
+
+  const [adminSellers, setAdminSellers] =
+    useState<AdminSellerListItem[]>([]);
+
+  const [
+    adminSellerNextCursor,
+    setAdminSellerNextCursor,
+  ] = useState<string | null>(null);
+
+  const [
+    adminSellersHasMore,
+    setAdminSellersHasMore,
+  ] = useState(false);
+
+  const [
+    loadingAdminSellers,
+    setLoadingAdminSellers,
+  ] = useState(false);
+
+  const [
+    loadingMoreAdminSellers,
+    setLoadingMoreAdminSellers,
+  ] = useState(false);
+
+  const [
+    adminSellerListError,
+    setAdminSellerListError,
+  ] = useState("");
   const [adminStoreFilter, setAdminStoreFilter] = useState<"all" | "active" | "trial" | "expired" | "suspended" | "expiring">("all");
   const [adminStoreSearch, setAdminStoreSearch] = useState("");
   const [loadingAdminStores, setLoadingAdminStores] = useState(false);
@@ -671,14 +703,7 @@ const [error, setError] = useState("");
 
     setLoginLoading(true);
 
-    const loginBase =
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1" ||
-      /^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$/.test(window.location.hostname)
-        ? "/api/v1"
-        : API_URL;
-
-    const url = `${loginBase}/auth/login`;
+    const url = `${API_URL}/auth/login`;
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 12000);
     const startedAt = Date.now();
@@ -1242,6 +1267,93 @@ try {
       setLoadingAdminSubscriptionSummary(false);
     }
   }
+  async function loadAdminSellers(
+    append = false,
+  ) {
+    if (!isPlatformAdmin) {
+      return;
+    }
+
+    if (
+      append &&
+      !adminSellerNextCursor
+    ) {
+      return;
+    }
+
+    if (append) {
+      setLoadingMoreAdminSellers(true);
+    } else {
+      setLoadingAdminSellers(true);
+    }
+
+    setAdminSellerListError("");
+
+    try {
+      const query = new URLSearchParams({
+        limit: "25",
+      });
+
+      if (
+        append &&
+        adminSellerNextCursor
+      ) {
+        query.set(
+          "cursor",
+          adminSellerNextCursor,
+        );
+      }
+
+      const data = (
+        await apiFetch(
+          `/admin/sellers?${query.toString()}`,
+        )
+      ) as AdminSellerListResponse;
+
+      setAdminSellers((current) => {
+        if (!append) {
+          return data.items;
+        }
+
+        const existingIds = new Set(
+          current.map(
+            (seller) => seller.seller_id,
+          ),
+        );
+
+        return [
+          ...current,
+          ...data.items.filter(
+            (seller) =>
+              !existingIds.has(
+                seller.seller_id,
+              ),
+          ),
+        ];
+      });
+
+      setAdminSellerNextCursor(
+        data.next_cursor,
+      );
+
+      setAdminSellersHasMore(
+        data.has_more,
+      );
+    } catch (loadError) {
+      setAdminSellerListError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Could not load seller accounts.",
+      );
+    } finally {
+      if (append) {
+        setLoadingMoreAdminSellers(false);
+      } else {
+        setLoadingAdminSellers(false);
+      }
+    }
+  }
+
   function exportAdminStoresCsv() {
     if (adminStores.length === 0) {
       setError("No sellers to export. Refresh sellers first.");
@@ -1866,22 +1978,60 @@ try {
 
 
   useEffect(() => {
-    // Auto-load admin subscription dashboard data when admin opens Settings.
-    if (token && isPlatformAdmin && ["adminSummary", "adminSellers", "adminPlans", "adminPayments"].includes(activeTab)) {
-      loadSubscriptionPlans().catch((err) =>
-        setError(err instanceof Error ? err.message : "Could not load subscription plans")
+    if (!token || !isPlatformAdmin) {
+      return;
+    }
+
+    if (activeTab === "adminSummary") {
+      loadAdminSubscriptionSummary().catch(
+        (loadError) =>
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Could not load subscription summary",
+          ),
+      );
+    }
+
+    if (activeTab === "adminSellers") {
+      loadAdminSellers().catch(
+        (loadError) =>
+          setAdminSellerListError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Could not load seller accounts",
+          ),
       );
 
-      loadAdminSubscriptionSummary().catch((err) =>
-        setError(err instanceof Error ? err.message : "Could not load subscription summary")
+      loadSubscriptionPlans().catch(
+        (loadError) =>
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Could not load subscription plans",
+          ),
       );
+    }
 
-      loadAdminStores().catch((err) =>
-        setError(err instanceof Error ? err.message : "Could not load admin stores")
+    if (activeTab === "adminPlans") {
+      loadSubscriptionPlans().catch(
+        (loadError) =>
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Could not load subscription plans",
+          ),
       );
+    }
 
-      loadAdminSubscriptionPayments().catch((err) =>
-        setError(err instanceof Error ? err.message : "Could not load subscription payments")
+    if (activeTab === "adminPayments") {
+      loadAdminSubscriptionPayments().catch(
+        (loadError) =>
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Could not load subscription payments",
+          ),
       );
     }
   }, [token, isPlatformAdmin, activeTab]);
@@ -1992,7 +2142,6 @@ try {
             setIsSidebarOpen(false);
           }}
           onLoadAdminSubscriptionSummary={loadAdminSubscriptionSummary}
-          onLoadAdminStores={loadAdminStores}
           onLoadAdminSubscriptionPayments={loadAdminSubscriptionPayments}
           onLoadSubscriptionPlans={loadSubscriptionPlans}
           onLogout={logout}
@@ -2031,7 +2180,16 @@ try {
                 loadProducts(selectedStore.id);
               }
 
-              if (isPlatformAdmin && ["adminSummary", "adminSellers", "adminPlans", "adminPayments"].includes(activeTab)) {
+              if (
+                isPlatformAdmin &&
+                activeTab === "adminSellers"
+              ) {
+                loadAdminSellers();
+                loadSubscriptionPlans();
+              } else if (
+                isPlatformAdmin &&
+                ["adminSummary", "adminPlans", "adminPayments"].includes(activeTab)
+              ) {
                 loadSubscriptionPlans();
                 loadAdminSubscriptionSummary();
                 loadAdminStores();
@@ -2152,6 +2310,26 @@ try {
           >
             {activeTab === "adminSellers" && (
               <AdminSellersPage
+                adminSellers={adminSellers}
+                loadingAdminSellers={
+                  loadingAdminSellers
+                }
+                loadingMoreAdminSellers={
+                  loadingMoreAdminSellers
+                }
+                adminSellerListError={
+                  adminSellerListError
+                }
+                adminSellersHasMore={
+                  adminSellersHasMore
+                }
+                loadAdminSellers={
+                  loadAdminSellers
+                }
+                apiFetch={apiFetch}
+                onSellerCreated={() =>
+                  loadAdminSellers(false)
+                }
                 adminStores={adminStores}
                 filteredAdminStores={filteredAdminStores}
                 adminStoreSearch={adminStoreSearch}

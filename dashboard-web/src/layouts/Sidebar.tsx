@@ -24,7 +24,6 @@ type SidebarProps = {
   onSelectStore: (storeId: string) => void;
   onOpenTab: (tab: DashboardTab) => void;
   onLoadAdminSubscriptionSummary: () => void;
-  onLoadAdminStores: () => void;
   onLoadAdminSubscriptionPayments: () => void;
   onLoadSubscriptionPlans: () => void;
   onLogout: () => void;
@@ -41,7 +40,6 @@ export function Sidebar({
   onSelectStore,
   onOpenTab,
   onLoadAdminSubscriptionSummary,
-  onLoadAdminStores,
   onLoadAdminSubscriptionPayments,
   onLoadSubscriptionPlans,
   onLogout,
@@ -188,8 +186,6 @@ export function Sidebar({
                 }
                 onClick={() => {
                   onOpenTab("adminSellers");
-                  onLoadAdminStores();
-                  onLoadAdminSubscriptionPayments();
                 }}
               >
                 Sellers
