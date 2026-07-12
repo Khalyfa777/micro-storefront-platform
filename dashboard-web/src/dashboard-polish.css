@@ -201,3 +201,254 @@ button:active,
     max-width: 26rem !important;
   }
 }
+
+
+/* StorePlug premium polish pass 3 - button roles + premium hierarchy */
+
+/* BUTTON ROLE SYSTEM */
+
+/* Primary: only main creation/login CTA */
+.premium-login-btn,
+.product-create-trigger,
+button[type="submit"]:not(.save-plan-btn):not(.save-store-plan-btn) {
+  background: #101828 !important;
+  color: #ffffff !important;
+  border: 1px solid #101828 !important;
+  box-shadow: 0 8px 18px rgba(16, 24, 40, 0.16) !important;
+}
+
+/* Secondary: refresh, export, save plan, edit, utility buttons */
+.topbar button,
+.admin-header-actions button,
+.save-plan-btn,
+.save-store-plan-btn,
+.product-action-btn,
+.secondary-form-btn,
+.public-link,
+.admin-plans-panel button:not(.extend-subscription-btn):not(.suspend-store-btn):not(.reactivate-store-btn),
+.admin-stores-panel button:not(.extend-subscription-btn):not(.suspend-store-btn):not(.reactivate-store-btn),
+.subscription-payment-filters button,
+.admin-store-filters button {
+  background: #ffffff !important;
+  color: #101828 !important;
+  border: 1px solid rgba(16, 24, 40, 0.15) !important;
+  box-shadow: none !important;
+}
+
+/* Success: committing positive subscription actions only */
+.extend-subscription-btn,
+.reactivate-store-btn {
+  background: #ecfdf3 !important;
+  color: #067647 !important;
+  border: 1px solid #abefc6 !important;
+  box-shadow: none !important;
+}
+
+/* Destructive: suspend/remove/delete only */
+.suspend-store-btn,
+.delete-btn,
+.remove-btn,
+button.danger,
+button.destructive {
+  background: #fef3f2 !important;
+  color: #b42318 !important;
+  border: 1px solid #fecdca !important;
+  box-shadow: none !important;
+}
+
+/* Disabled buttons should feel inactive, not like primary actions */
+button:disabled,
+.save-store-plan-btn:disabled,
+.save-plan-btn:disabled {
+  background: #eef2f6 !important;
+  color: rgba(16, 24, 40, 0.38) !important;
+  border: 1px solid rgba(16, 24, 40, 0.08) !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+}
+
+/* Active filter chip: subtle success accent, not full green flood */
+.admin-store-filters button.active,
+.subscription-payment-filters button.active {
+  background: #ecfdf3 !important;
+  color: #067647 !important;
+  border: 1px solid #abefc6 !important;
+}
+
+/* STAT TILE SYSTEM: tint + border, no saturated candy fill */
+.admin-summary-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(16, 24, 40, 0.08) !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05) !important;
+}
+
+.admin-summary-card.good {
+  background: #ecfdf3 !important;
+  color: #067647 !important;
+  border: 1px solid #abefc6 !important;
+}
+
+.admin-summary-card.danger {
+  background: #fef3f2 !important;
+  color: #b42318 !important;
+  border: 1px solid #fecdca !important;
+}
+
+.admin-summary-card.warning {
+  background: #fffaeb !important;
+  color: #b54708 !important;
+  border: 1px solid #fedf89 !important;
+}
+
+.admin-summary-card.money {
+  background: #f8fafc !important;
+  color: #101828 !important;
+  border: 1px solid rgba(16, 24, 40, 0.08) !important;
+}
+
+.admin-summary-card span {
+  color: rgba(16, 24, 40, 0.58) !important;
+}
+
+.admin-summary-card strong {
+  color: inherit !important;
+}
+
+/* NESTED CARD HIERARCHY */
+.admin-layout .settings-card {
+  background: #ffffff !important;
+  padding: 24px !important;
+  border-radius: 20px !important;
+}
+
+.admin-layout .settings-card > .admin-summary-panel,
+.admin-layout .settings-card > .admin-stores-panel,
+.admin-layout .settings-card > .admin-plans-panel {
+  background: #fafbfc !important;
+  padding: 16px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(16, 24, 40, 0.06) !important;
+  box-shadow: none !important;
+}
+
+/* FORM FOCUS STATES - force visible focus */
+input,
+textarea,
+select {
+  border: 1px solid rgba(16, 24, 40, 0.12) !important;
+  border-radius: 10px !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  border-color: #1e2b4d !important;
+  box-shadow: 0 0 0 3px rgba(30, 43, 77, 0.12) !important;
+  outline: none !important;
+}
+
+/* ORDER EMPTY END STATE */
+.orders-end-note {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  margin: 22px auto 0 !important;
+  color: rgba(16, 24, 40, 0.42) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+.orders-end-note::before,
+.orders-end-note::after {
+  content: "" !important;
+  width: 48px !important;
+  height: 1px !important;
+  background: rgba(16, 24, 40, 0.10) !important;
+}
+
+/* NAV ACTIVE: remove random green active drawer item */
+.sidebar .nav-btn.active,
+.dashboard .sidebar .nav-btn.active,
+.nav-btn.active {
+  background: rgba(255, 255, 255, 0.10) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: none !important;
+}
+
+/* FILTER ROW: make cut-off chips swipeable and readable */
+.admin-store-filters,
+.subscription-payment-filters {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 8px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: none !important;
+  padding: 0 16px 6px !important;
+  margin-left: -16px !important;
+  margin-right: -16px !important;
+  max-width: calc(100% + 32px) !important;
+}
+
+.admin-store-filters::-webkit-scrollbar,
+.subscription-payment-filters::-webkit-scrollbar {
+  display: none !important;
+}
+
+.admin-store-filters > *,
+.subscription-payment-filters > * {
+  flex: 0 0 auto !important;
+  min-width: max-content !important;
+  white-space: nowrap !important;
+}
+
+/* Premium tap feel */
+button {
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.10s ease !important;
+}
+
+button:active {
+  transform: scale(0.985) !important;
+}
+
+@media (max-width: 820px) {
+  .admin-layout .settings-card {
+    padding: 18px !important;
+  }
+
+  .admin-layout .settings-card > .admin-summary-panel,
+  .admin-layout .settings-card > .admin-stores-panel,
+  .admin-layout .settings-card > .admin-plans-panel {
+    padding: 14px !important;
+  }
+
+  .admin-header-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+
+  .admin-store-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .admin-header-actions,
+  .admin-store-actions {
+    grid-template-columns: 1fr !important;
+  }
+}
