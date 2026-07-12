@@ -1,4 +1,4 @@
-﻿from datetime import datetime
+from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -119,3 +119,71 @@ class AdminSellerCreateResponse(BaseModel):
 
     invitation_expires_at: datetime
     invitation_url: str
+
+
+class SellerInvitationTokenRequest(BaseModel):
+    token: str = Field(
+        min_length=20,
+        max_length=512,
+    )
+
+
+class SellerInvitationAcceptRequest(
+    SellerInvitationTokenRequest
+):
+    password: str = Field(
+        min_length=8,
+        max_length=128,
+    )
+
+
+class SellerInvitationValidationResponse(BaseModel):
+    valid: Literal[True] = True
+
+    invitation_id: UUID
+    seller_id: UUID
+    store_id: UUID
+
+    full_name: str
+    email: EmailStr
+
+    store_name: str
+    store_slug: str
+
+    publication_status: Literal["draft"]
+    expires_at: datetime
+
+
+class SellerInvitationAcceptResponse(BaseModel):
+    seller_id: UUID
+    store_id: UUID
+
+    account_status: Literal["active"]
+    publication_status: Literal["draft"]
+
+    accepted_at: datetime
+
+
+class AdminSellerInvitationRegenerateRequest(BaseModel):
+    current_invitation_id: UUID | None = None
+
+
+class AdminSellerInvitationRegenerateResponse(BaseModel):
+    seller_id: UUID
+    store_id: UUID
+    invitation_id: UUID
+
+    invitation_expires_at: datetime
+    invitation_url: str
+
+
+class AdminSellerOnboardingCancelRequest(BaseModel):
+    current_invitation_id: UUID
+
+
+class AdminSellerOnboardingCancelResponse(BaseModel):
+    seller_id: UUID
+    invitation_id: UUID
+
+    onboarding_status: Literal["cancelled"]
+    revoked_at: datetime

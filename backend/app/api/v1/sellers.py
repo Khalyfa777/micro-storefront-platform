@@ -1,5 +1,6 @@
-﻿from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from uuid import UUID
 
 from fastapi import (
     APIRouter,
@@ -23,6 +24,10 @@ from app.models import (
 from app.schemas.seller import (
     AdminSellerCreateRequest,
     AdminSellerCreateResponse,
+    AdminSellerInvitationRegenerateRequest,
+    AdminSellerInvitationRegenerateResponse,
+    AdminSellerOnboardingCancelRequest,
+    AdminSellerOnboardingCancelResponse,
 )
 from app.services.seller_invitation import (
     build_invitation_url,
@@ -266,6 +271,316 @@ async def create_admin_seller(
             ) from exc
 
         raise
+
+    except Exception:
+        await db.rollback()
+        raise
+
+
+def _seller_is_pending_onboarding(
+    seller: User,
+) -> bool:
+    return (
+        seller.role == "merchant"
+        and seller.password_hash is None
+        and seller.is_active is False
+        and seller.is_verified is False
+    )
+
+
+async def _lock_pending_seller(
+    db: AsyncSession,
+    seller_id: UUID,
+) -> User:
+    seller_result = await db.execute(
+        select(User)
+        .where(User.id == seller_id)
+        .with_for_update()
+    )
+
+    seller = seller_result.scalar_one_or_none()
+
+    if seller is None or seller.role != "merchant":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Seller not found.",
+        )
+
+    if not _seller_is_pending_onboarding(seller):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "This seller has already completed "
+                "account setup."
+            ),
+        )
+
+    return seller
+
+
+async def _load_open_invitation_for_update(
+    db: AsyncSession,
+    seller_id: UUID,
+) -> SellerInvitation | None:
+    invitation_result = await db.execute(
+        select(SellerInvitation)
+        .where(
+            SellerInvitation.user_id == seller_id,
+            SellerInvitation.accepted_at.is_(None),
+            SellerInvitation.revoked_at.is_(None),
+        )
+        .with_for_update()
+    )
+
+    return invitation_result.scalar_one_or_none()
+
+
+async def _load_latest_invitation_for_update(
+    db: AsyncSession,
+    seller_id: UUID,
+) -> SellerInvitation | None:
+    invitation_result = await db.execute(
+        select(SellerInvitation)
+        .where(
+            SellerInvitation.user_id == seller_id
+        )
+        .order_by(
+            SellerInvitation.created_at.desc(),
+            SellerInvitation.id.desc(),
+        )
+        .limit(1)
+        .with_for_update()
+    )
+
+    return invitation_result.scalar_one_or_none()
+
+
+@router.post(
+    "/{seller_id}/invitation/regenerate",
+    response_model=(
+        AdminSellerInvitationRegenerateResponse
+    ),
+    status_code=status.HTTP_201_CREATED,
+)
+async def regenerate_seller_invitation(
+    seller_id: UUID,
+    payload: AdminSellerInvitationRegenerateRequest,
+    current_admin: User = Depends(
+        require_platform_admin
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> AdminSellerInvitationRegenerateResponse:
+    try:
+        seller = await _lock_pending_seller(
+            db,
+            seller_id,
+        )
+
+        open_invitation = (
+            await _load_open_invitation_for_update(
+                db,
+                seller.id,
+            )
+        )
+
+        expected_invitation_id = (
+            payload.current_invitation_id
+        )
+
+        if expected_invitation_id is None:
+            if open_invitation is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        "An active invitation already exists. "
+                        "Refresh and try again."
+                    ),
+                )
+        elif (
+            open_invitation is None
+            or open_invitation.id
+            != expected_invitation_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "The invitation has already changed. "
+                    "Refresh and try again."
+                ),
+            )
+
+        source_invitation = open_invitation
+
+        if source_invitation is None:
+            source_invitation = (
+                await _load_latest_invitation_for_update(
+                    db,
+                    seller.id,
+                )
+            )
+
+        if source_invitation is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Seller invitation not found.",
+            )
+
+        store_result = await db.execute(
+            select(Store).where(
+                Store.id == source_invitation.store_id,
+                Store.owner_id == seller.id,
+            )
+        )
+
+        store = store_result.scalar_one_or_none()
+
+        if store is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "The seller's onboarding store "
+                    "is unavailable."
+                ),
+            )
+
+        now = datetime.now(timezone.utc)
+
+        if open_invitation is not None:
+            open_invitation.revoked_at = now
+
+            # Close the previous invitation before inserting
+            # the next row so the partial unique index remains
+            # authoritative.
+            await db.flush()
+
+        raw_token = generate_invitation_token()
+        expires_at = get_invitation_expiry(now)
+
+        new_invitation = SellerInvitation(
+            user_id=seller.id,
+            store_id=store.id,
+            token_hash=hash_invitation_token(
+                raw_token
+            ),
+            expires_at=expires_at,
+            accepted_at=None,
+            revoked_at=None,
+            created_by_user_id=current_admin.id,
+        )
+
+        db.add(new_invitation)
+        await db.flush()
+
+        response = (
+            AdminSellerInvitationRegenerateResponse(
+                seller_id=seller.id,
+                store_id=store.id,
+                invitation_id=new_invitation.id,
+                invitation_expires_at=expires_at,
+                invitation_url=build_invitation_url(
+                    raw_token
+                ),
+            )
+        )
+
+        await db.commit()
+
+        return response
+
+    except IntegrityError as exc:
+        await db.rollback()
+
+        if _integrity_sqlstate(exc) == "23505":
+            constraint_name = (
+                _integrity_constraint_name(exc)
+            )
+
+            if constraint_name == (
+                "uq_seller_invitations_"
+                "one_open_per_user"
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        "The invitation has already changed. "
+                        "Refresh and try again."
+                    ),
+                ) from exc
+
+            if constraint_name == (
+                "uq_seller_invitations_token_hash"
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        "Unable to generate a new "
+                        "invitation. Please try again."
+                    ),
+                ) from exc
+
+        raise
+
+    except Exception:
+        await db.rollback()
+        raise
+
+
+@router.post(
+    "/{seller_id}/cancel-onboarding",
+    response_model=(
+        AdminSellerOnboardingCancelResponse
+    ),
+)
+async def cancel_seller_onboarding(
+    seller_id: UUID,
+    payload: AdminSellerOnboardingCancelRequest,
+    current_admin: User = Depends(
+        require_platform_admin
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> AdminSellerOnboardingCancelResponse:
+    del current_admin
+
+    try:
+        seller = await _lock_pending_seller(
+            db,
+            seller_id,
+        )
+
+        open_invitation = (
+            await _load_open_invitation_for_update(
+                db,
+                seller.id,
+            )
+        )
+
+        if (
+            open_invitation is None
+            or open_invitation.id
+            != payload.current_invitation_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "The invitation has already changed "
+                    "or onboarding is already cancelled."
+                ),
+            )
+
+        now = datetime.now(timezone.utc)
+
+        open_invitation.revoked_at = now
+
+        # Seller account and Draft store are retained.
+        # The revoked invitation prevents account setup.
+        await db.commit()
+
+        return AdminSellerOnboardingCancelResponse(
+            seller_id=seller.id,
+            invitation_id=open_invitation.id,
+            onboarding_status="cancelled",
+            revoked_at=now,
+        )
 
     except Exception:
         await db.rollback()
