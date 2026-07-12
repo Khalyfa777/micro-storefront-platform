@@ -267,3 +267,124 @@ class AdminSellerListResponse(BaseModel):
     items: list[AdminSellerListItem]
     next_cursor: str | None = None
     has_more: bool
+
+
+class AdminSellerAccountActionRequest(BaseModel):
+    expected_updated_at: datetime
+
+    reason: str | None = Field(
+        default=None,
+        max_length=500,
+    )
+
+    @field_validator(
+        "reason",
+        mode="before",
+    )
+    @classmethod
+    def normalize_reason(
+        cls,
+        value: object,
+    ) -> object:
+        if value is None:
+            return None
+
+        if not isinstance(value, str):
+            return value
+
+        normalized = " ".join(value.split())
+
+        return normalized or None
+
+
+class AdminSellerAccountActionResponse(BaseModel):
+    seller_id: UUID
+    event_id: UUID
+
+    account_status: Literal[
+        "active",
+        "suspended",
+    ]
+
+    is_active: bool
+    is_verified: bool
+
+    updated_at: datetime
+
+
+class AdminSellerAccountEventSummary(BaseModel):
+    id: UUID
+
+    action: Literal[
+        "suspend",
+        "reactivate",
+    ]
+
+    previous_account_status: Literal[
+        "active",
+        "suspended",
+    ]
+
+    new_account_status: Literal[
+        "active",
+        "suspended",
+    ]
+
+    reason: str | None = None
+
+    actor_user_id: UUID | None = None
+    actor_email: EmailStr | None = None
+
+    created_at: datetime
+
+
+class AdminSellerDetailResponse(BaseModel):
+    seller_id: UUID
+
+    full_name: str
+    email: EmailStr
+    phone_number: str | None = None
+
+    account_status: Literal[
+        "invited",
+        "active",
+        "suspended",
+    ]
+
+    setup_status: Literal[
+        "pending",
+        "completed",
+        "cancelled",
+    ]
+
+    invitation_status: Literal[
+        "active",
+        "expired",
+        "accepted",
+        "revoked",
+        "none",
+    ]
+
+    is_active: bool
+    is_verified: bool
+    has_password: bool
+
+    latest_invitation: (
+        AdminSellerInvitationSummary | None
+    ) = None
+
+    invitation_count: int
+    invitations: list[
+        AdminSellerInvitationSummary
+    ]
+
+    store_count: int
+    stores: list[AdminSellerStoreSummary]
+
+    account_event_count: int
+    account_events: list[
+        AdminSellerAccountEventSummary
+    ]
+
+    created_at: datetime
+    updated_at: datetime
