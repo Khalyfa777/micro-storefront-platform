@@ -1,303 +1,798 @@
-/* StorePlug dashboard polish audit pass */
 
-/* Design tokens */
-:root {
-  --sp-bg: #f4f7fb;
-  --sp-surface: #ffffff;
-  --sp-navy: #0f172a;
-  --sp-navy-soft: #1e2b4d;
-  --sp-text: #111827;
-  --sp-muted: #667085;
-  --sp-border: rgba(16, 24, 40, 0.10);
-  --sp-border-strong: rgba(16, 24, 40, 0.16);
-  --sp-shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 4px 12px rgba(16, 24, 40, 0.08);
-  --sp-radius-card: 16px;
-  --sp-radius-panel: 20px;
-  --sp-focus: rgba(30, 43, 77, 0.12);
+
+/* StorePlug premium polish pass 2 */
+
+/* Premium shell/header depth */
+.mobile-shell-bar {
+  background: linear-gradient(180deg, #111c34 0%, #0f172a 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 4px 16px rgba(0, 0, 0, 0.15) !important;
 }
 
-/* Root overflow hardening */
-html,
-body,
-#root {
-  width: 100% !important;
-  max-width: 100% !important;
-  overflow-x: hidden !important;
-  overscroll-behavior-x: none;
+/* Better page title/subtitle rhythm */
+.topbar h1 {
+  margin-bottom: 8px !important;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+.topbar .muted {
+  color: rgba(16, 24, 40, 0.56) !important;
+  line-height: 1.5 !important;
 }
 
-/* Avoid 100vw-driven content overflow */
-.dashboard,
-.content,
-.mobile-shell-bar,
-.topbar,
-.settings-layout,
-.products-layout,
-.orders-layout,
-.admin-layout,
-.admin-summary-panel,
-.admin-stores-panel,
-.admin-plans-panel,
-.product-list,
-.cards,
-.admin-store-list,
-.plan-settings-grid {
-  width: 100% !important;
-  max-width: 100% !important;
-  min-width: 0 !important;
-  overflow-x: hidden !important;
-}
-
-.sidebar-backdrop {
-  inset: 0 !important;
-  width: auto !important;
-  max-width: none !important;
-}
-
-/* Typography scale */
-.topbar h1,
-.settings-card h2,
-.product-toolbar h2 {
-  font-size: clamp(22px, 5vw, 28px) !important;
-  line-height: 1.12 !important;
-  letter-spacing: -0.04em !important;
-}
-
-.topbar .muted,
-.product-toolbar p,
-.admin-stores-header p,
-.settings-card p {
-  font-size: 15px !important;
-  line-height: 1.45 !important;
-}
-
-/* Card elevation and hierarchy */
-.settings-card,
-.order-card,
-.product-card,
-.premium-product-card,
-.admin-summary-card,
-.admin-store-card,
-.plan-settings-card,
-.product-toolbar,
-.admin-stores-panel,
-.admin-plans-panel,
-.subscription-summary-card,
-.product-usage-card {
-  border: 1px solid var(--sp-border) !important;
-  border-radius: var(--sp-radius-card) !important;
-  box-shadow: var(--sp-shadow-card) !important;
-  background: var(--sp-surface) !important;
-}
-
-.settings-card,
-.admin-stores-panel,
-.admin-plans-panel {
-  border-radius: var(--sp-radius-panel) !important;
-}
-
-/* Inputs and focus states */
-input,
-textarea,
-select {
-  border: 1px solid var(--sp-border-strong) !important;
-  border-radius: 10px !important;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
-}
-
-input:focus,
-textarea:focus,
-select:focus {
-  border-color: var(--sp-navy-soft) !important;
-  box-shadow: 0 0 0 3px var(--sp-focus) !important;
-  outline: none !important;
-}
-
-/* Button hierarchy */
-button {
-  font-weight: 700;
-}
-
-.topbar button,
-.admin-header-actions button,
-.product-action-btn,
-.secondary-form-btn,
-.save-store-plan-btn,
-.public-link {
-  background: #ffffff !important;
-  color: var(--sp-navy) !important;
-  border: 1px solid var(--sp-border-strong) !important;
-  box-shadow: none !important;
-}
-
-.premium-login-btn,
-.product-create-trigger,
-button[type="submit"],
-.save-plan-btn,
-.extend-subscription-btn {
-  background: var(--sp-navy) !important;
-  color: #ffffff !important;
-  border: 1px solid var(--sp-navy) !important;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16) !important;
-}
-
-.suspend-store-btn,
-.delete-btn,
-.remove-btn {
-  background: #ffffff !important;
-  color: #991b1b !important;
-  border: 1px solid rgba(153, 27, 27, 0.28) !important;
-  box-shadow: none !important;
-}
-
-.reactivate-store-btn {
-  background: #ffffff !important;
-  color: #166534 !important;
-  border: 1px solid rgba(22, 101, 52, 0.28) !important;
-  box-shadow: none !important;
-}
-
-/* Button/action wrapping */
-.admin-header-actions,
-.admin-store-actions,
-.product-card-actions,
-.order-actions,
-.actions,
-.form-actions,
-.premium-form-actions,
-.button-row,
-.action-row {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  gap: 12px !important;
-  max-width: 100% !important;
-}
-
-.admin-header-actions button,
-.admin-store-actions button,
-.product-card-actions button,
-.order-actions button,
-.actions button,
-.form-actions button {
-  min-width: 0 !important;
-}
-
-/* Filters should not force page sideways */
+/* Standard horizontal chip/tab-row pattern */
 .admin-store-filters,
 .subscription-payment-filters {
   display: flex !important;
-  flex-wrap: wrap !important;
-  gap: 10px !important;
-  max-width: 100% !important;
-  overflow-x: visible !important;
+  flex-wrap: nowrap !important;
+  gap: 8px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: none !important;
+  padding: 0 16px 4px !important;
+  margin-left: -16px !important;
+  margin-right: -16px !important;
+  max-width: calc(100% + 32px) !important;
 }
 
+.admin-store-filters::-webkit-scrollbar,
+.subscription-payment-filters::-webkit-scrollbar {
+  display: none !important;
+}
+
+.admin-store-filters > *,
+.subscription-payment-filters > * {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+}
+
+/* Keep filter text fully readable */
 .admin-store-filters button,
 .subscription-payment-filters button {
-  white-space: normal !important;
+  min-width: max-content !important;
+  padding: 10px 16px !important;
 }
 
-/* Standard pill treatment */
-.status,
-.pill,
-.payment-method-badge,
-.product-status-pill,
-.featured-pill,
-.subscription-status,
-.subscription-time,
-.plan-feature-chip {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  padding: 4px 10px !important;
-  border-radius: 999px !important;
-  font-size: 12px !important;
-  line-height: 1.2 !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.01em !important;
+/* Parent card vs inner card hierarchy */
+.admin-layout .settings-card {
+  background: #ffffff !important;
+  padding: 24px !important;
+}
+
+.admin-layout .settings-card > .admin-stores-panel,
+.admin-layout .settings-card > .admin-plans-panel,
+.admin-layout .settings-card > .admin-summary-panel {
+  background: #fafbfc !important;
+  padding: 16px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(16, 24, 40, 0.06) !important;
   box-shadow: none !important;
 }
 
+/* Form-heavy screen premium input feel */
+.settings-card input,
+.settings-card textarea,
+.settings-card select,
+.product-form input,
+.product-form textarea,
+.product-form select,
+.admin-store-search input {
+  padding: 12px 14px !important;
+  border: 1px solid rgba(16, 24, 40, 0.12) !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease !important;
+}
+
+.settings-card input:focus,
+.settings-card textarea:focus,
+.settings-card select:focus,
+.product-form input:focus,
+.product-form textarea:focus,
+.product-form select:focus,
+.admin-store-search input:focus {
+  border-color: #1e2b4d !important;
+  box-shadow: 0 0 0 3px rgba(30, 43, 77, 0.12) !important;
+  outline: none !important;
+}
+
+/* Premium text scale for micro labels */
+.admin-store-card span,
+.product-card-stats span,
+.item-row.total span,
+.settings-card label,
+.plan-settings-card label {
+  letter-spacing: 0.04em !important;
+}
+
+.admin-store-card > div > span,
+.product-card-stats span,
+.item-row.total span {
+  text-transform: uppercase !important;
+  font-size: 12px !important;
+  line-height: 16px !important;
+  font-weight: 700 !important;
+  color: rgba(16, 24, 40, 0.55) !important;
+}
+
+/* Desaturate success/warning/danger surfaces */
+.admin-summary-card.good,
 .status.paid,
 .status.completed,
 .active-pill,
 .plan-feature-chip.enabled {
-  color: #166534 !important;
-  background: rgba(22, 101, 52, 0.08) !important;
-  border: 1px solid rgba(22, 101, 52, 0.20) !important;
+  background: #ecfdf3 !important;
+  color: #067647 !important;
+  border-color: #abefc6 !important;
 }
 
+.admin-summary-card.danger,
+.status.cancelled,
+.inactive-pill,
+.plan-feature-chip.disabled {
+  background: #fef3f2 !important;
+  color: #b42318 !important;
+  border-color: #fecdca !important;
+}
+
+.admin-summary-card.warning,
 .status.pending,
 .status.processing,
 .featured-pill,
 .payment-method-badge.manual {
-  color: #92400e !important;
-  background: rgba(146, 64, 14, 0.08) !important;
-  border: 1px solid rgba(146, 64, 14, 0.20) !important;
+  background: #fffaeb !important;
+  color: #b54708 !important;
+  border-color: #fedf89 !important;
 }
 
-.status.cancelled,
-.inactive-pill,
-.plan-feature-chip.disabled {
-  color: #991b1b !important;
-  background: rgba(153, 27, 27, 0.08) !important;
-  border: 1px solid rgba(153, 27, 27, 0.20) !important;
+/* Motion */
+button,
+.nav-btn,
+.product-card,
+.order-card,
+.admin-store-card,
+.plan-settings-card {
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.10s ease !important;
 }
 
-/* Nav active state: keep it navy, not random green */
-.nav-btn.active,
-.dashboard .sidebar .nav-btn.active {
+button:active,
+.nav-btn:active,
+.product-card:active,
+.order-card:active,
+.admin-store-card:active {
+  transform: scale(0.985) !important;
+}
+
+/* Order list should not feel unfinished */
+.orders-end-note {
+  margin: 18px auto 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(16, 24, 40, 0.36);
+}
+
+/* Mobile tightening */
+@media (max-width: 820px) {
+  .admin-layout .settings-card {
+    padding: 18px !important;
+  }
+
+  .admin-layout .settings-card > .admin-stores-panel,
+  .admin-layout .settings-card > .admin-plans-panel,
+  .admin-layout .settings-card > .admin-summary-panel {
+    padding: 14px !important;
+  }
+
+  .topbar {
+    padding-top: 24px !important;
+    padding-bottom: 24px !important;
+  }
+
+  .topbar .muted {
+    max-width: 26rem !important;
+  }
+}
+
+
+/* StorePlug premium polish pass 3 - button roles + premium hierarchy */
+
+/* BUTTON ROLE SYSTEM */
+
+/* Primary: only main creation/login CTA */
+.premium-login-btn,
+.product-create-trigger,
+button[type="submit"]:not(.save-plan-btn):not(.save-store-plan-btn) {
+  background: #101828 !important;
+  color: #ffffff !important;
+  border: 1px solid #101828 !important;
+  box-shadow: 0 8px 18px rgba(16, 24, 40, 0.16) !important;
+}
+
+/* Secondary: refresh, export, save plan, edit, utility buttons */
+.topbar button,
+.admin-header-actions button,
+.save-plan-btn,
+.save-store-plan-btn,
+.product-action-btn,
+.secondary-form-btn,
+.public-link,
+.admin-plans-panel button:not(.extend-subscription-btn):not(.suspend-store-btn):not(.reactivate-store-btn),
+.admin-stores-panel button:not(.extend-subscription-btn):not(.suspend-store-btn):not(.reactivate-store-btn),
+.subscription-payment-filters button,
+.admin-store-filters button {
+  background: #ffffff !important;
+  color: #101828 !important;
+  border: 1px solid rgba(16, 24, 40, 0.15) !important;
+  box-shadow: none !important;
+}
+
+/* Success: committing positive subscription actions only */
+.extend-subscription-btn,
+.reactivate-store-btn {
+  background: #ecfdf3 !important;
+  color: #067647 !important;
+  border: 1px solid #abefc6 !important;
+  box-shadow: none !important;
+}
+
+/* Destructive: suspend/remove/delete only */
+.suspend-store-btn,
+.delete-btn,
+.remove-btn,
+button.danger,
+button.destructive {
+  background: #fef3f2 !important;
+  color: #b42318 !important;
+  border: 1px solid #fecdca !important;
+  box-shadow: none !important;
+}
+
+/* Disabled buttons should feel inactive, not like primary actions */
+button:disabled,
+.save-store-plan-btn:disabled,
+.save-plan-btn:disabled {
+  background: #eef2f6 !important;
+  color: rgba(16, 24, 40, 0.38) !important;
+  border: 1px solid rgba(16, 24, 40, 0.08) !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+}
+
+/* Active filter chip: subtle success accent, not full green flood */
+.admin-store-filters button.active,
+.subscription-payment-filters button.active {
+  background: #ecfdf3 !important;
+  color: #067647 !important;
+  border: 1px solid #abefc6 !important;
+}
+
+/* STAT TILE SYSTEM: tint + border, no saturated candy fill */
+.admin-summary-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(16, 24, 40, 0.08) !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05) !important;
+}
+
+.admin-summary-card.good {
+  background: #ecfdf3 !important;
+  color: #067647 !important;
+  border: 1px solid #abefc6 !important;
+}
+
+.admin-summary-card.danger {
+  background: #fef3f2 !important;
+  color: #b42318 !important;
+  border: 1px solid #fecdca !important;
+}
+
+.admin-summary-card.warning {
+  background: #fffaeb !important;
+  color: #b54708 !important;
+  border: 1px solid #fedf89 !important;
+}
+
+.admin-summary-card.money {
+  background: #f8fafc !important;
+  color: #101828 !important;
+  border: 1px solid rgba(16, 24, 40, 0.08) !important;
+}
+
+.admin-summary-card span {
+  color: rgba(16, 24, 40, 0.58) !important;
+}
+
+.admin-summary-card strong {
+  color: inherit !important;
+}
+
+/* NESTED CARD HIERARCHY */
+.admin-layout .settings-card {
+  background: #ffffff !important;
+  padding: 24px !important;
+  border-radius: 20px !important;
+}
+
+.admin-layout .settings-card > .admin-summary-panel,
+.admin-layout .settings-card > .admin-stores-panel,
+.admin-layout .settings-card > .admin-plans-panel {
+  background: #fafbfc !important;
+  padding: 16px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(16, 24, 40, 0.06) !important;
+  box-shadow: none !important;
+}
+
+/* FORM FOCUS STATES - force visible focus */
+input,
+textarea,
+select {
+  border: 1px solid rgba(16, 24, 40, 0.12) !important;
+  border-radius: 10px !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  border-color: #1e2b4d !important;
+  box-shadow: 0 0 0 3px rgba(30, 43, 77, 0.12) !important;
+  outline: none !important;
+}
+
+/* ORDER EMPTY END STATE */
+.orders-end-note {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  margin: 22px auto 0 !important;
+  color: rgba(16, 24, 40, 0.42) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+.orders-end-note::before,
+.orders-end-note::after {
+  content: "" !important;
+  width: 48px !important;
+  height: 1px !important;
+  background: rgba(16, 24, 40, 0.10) !important;
+}
+
+/* NAV ACTIVE: remove random green active drawer item */
+.sidebar .nav-btn.active,
+.dashboard .sidebar .nav-btn.active,
+.nav-btn.active {
   background: rgba(255, 255, 255, 0.10) !important;
   color: #ffffff !important;
-  border-color: rgba(255, 255, 255, 0.14) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: none !important;
 }
 
-/* Mobile refinements */
+/* FILTER ROW: make cut-off chips swipeable and readable */
+.admin-store-filters,
+.subscription-payment-filters {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 8px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: none !important;
+  padding: 0 16px 6px !important;
+  margin-left: -16px !important;
+  margin-right: -16px !important;
+  max-width: calc(100% + 32px) !important;
+}
+
+.admin-store-filters::-webkit-scrollbar,
+.subscription-payment-filters::-webkit-scrollbar {
+  display: none !important;
+}
+
+.admin-store-filters > *,
+.subscription-payment-filters > * {
+  flex: 0 0 auto !important;
+  min-width: max-content !important;
+  white-space: nowrap !important;
+}
+
+/* Premium tap feel */
+button {
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.10s ease !important;
+}
+
+button:active {
+  transform: scale(0.985) !important;
+}
+
 @media (max-width: 820px) {
-  .topbar,
-  .product-toolbar,
-  .settings-card,
-  .admin-stores-panel,
-  .admin-plans-panel,
-  .order-card,
-  .product-card,
-  .premium-product-card,
-  .admin-store-card {
-    border-radius: 16px !important;
+  .admin-layout .settings-card {
+    padding: 18px !important;
+  }
+
+  .admin-layout .settings-card > .admin-summary-panel,
+  .admin-layout .settings-card > .admin-stores-panel,
+  .admin-layout .settings-card > .admin-plans-panel {
+    padding: 14px !important;
   }
 
   .admin-header-actions {
     display: grid !important;
-    grid-template-columns: 1fr !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
   }
 
-  .admin-header-actions button,
-  .product-create-trigger,
-  .premium-login-btn {
-    width: 100% !important;
-  }
-
-  .admin-store-actions,
-  .product-card-actions {
+  .admin-store-actions {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
-  }
-
-  .admin-store-filters,
-  .subscription-payment-filters {
-    flex-wrap: wrap !important;
+    gap: 10px !important;
   }
 }
 
 @media (max-width: 390px) {
-  .admin-store-actions,
-  .product-card-actions {
+  .admin-header-actions,
+  .admin-store-actions {
     grid-template-columns: 1fr !important;
   }
+}
+
+
+/* StorePlug orders end-state refinement */
+.orders-end-note {
+  width: fit-content !important;
+  max-width: calc(100% - 32px) !important;
+  margin: 20px auto 0 !important;
+  padding: 9px 14px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(16, 24, 40, 0.08) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  color: rgba(16, 24, 40, 0.48) !important;
+  font-size: 13px !important;
+  line-height: 18px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04) !important;
+}
+
+.orders-end-note::before,
+.orders-end-note::after {
+  display: none !important;
+}
+
+
+/* StorePlug login premium polish + overscroll background fix */
+
+/* Fix iOS Safari rubber-band overscroll background */
+html,
+body,
+#root,
+.premium-login-page,
+.login-page {
+  background-color: #f7f8fa !important;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+/* Login background should feel intentional, not empty */
+.premium-login-page {
+  background:
+    radial-gradient(circle at top left, rgba(30, 43, 77, 0.08), transparent 34%),
+    linear-gradient(180deg, #f7f8fa 0%, #eef3f9 100%) !important;
+}
+
+/* Login brand anchor */
+.login-brand-mini {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 18px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(180deg, #1a2744 0%, #101828 100%);
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 10px 22px rgba(16, 24, 40, 0.18);
+}
+
+.login-brand-mini span {
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+
+/* Login error state */
+.login-error-card {
+  display: grid !important;
+  grid-template-columns: auto 1fr !important;
+  column-gap: 10px !important;
+  row-gap: 2px !important;
+  align-items: start !important;
+  text-align: left !important;
+  padding: 12px 14px !important;
+  background: #fef3f2 !important;
+  border: 1px solid #fecdca !important;
+  border-radius: 12px !important;
+  color: #b42318 !important;
+  margin: 4px 0 2px !important;
+}
+
+.login-error-card::before {
+  content: "!" !important;
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 999px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: #fee4e2 !important;
+  color: #b42318 !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  grid-row: span 2 !important;
+  margin-top: 1px !important;
+}
+
+.login-error-card strong {
+  display: block !important;
+  font-size: 14px !important;
+  line-height: 18px !important;
+  font-weight: 800 !important;
+  color: #b42318 !important;
+}
+
+.login-error-card span {
+  display: block !important;
+  font-size: 14px !important;
+  line-height: 20px !important;
+  font-weight: 600 !important;
+  color: rgba(180, 35, 24, 0.88) !important;
+}
+
+/* Password show toggle should be secondary, not a primary CTA */
+.password-toggle-btn {
+  background: transparent !important;
+  color: #475467 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  min-width: auto !important;
+  padding: 0 14px !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+
+.password-toggle-btn:hover,
+.password-toggle-btn:focus {
+  background: rgba(16, 24, 40, 0.04) !important;
+  color: #101828 !important;
+}
+
+.password-input-wrap {
+  background: #ffffff !important;
+  border: 1px solid rgba(16, 24, 40, 0.12) !important;
+  border-radius: 14px !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.password-input-wrap:focus-within {
+  border-color: #1e2b4d !important;
+  box-shadow: 0 0 0 3px rgba(30, 43, 77, 0.12) !important;
+}
+
+.password-input-wrap input {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+/* Login input focus */
+.premium-login-card input:focus,
+.premium-login-card textarea:focus {
+  border-color: #1e2b4d !important;
+  box-shadow: 0 0 0 3px rgba(30, 43, 77, 0.12) !important;
+  outline: none !important;
+}
+
+/* Mobile login spacing */
+@media (max-width: 820px) {
+  .premium-login-page {
+    padding-top: 24px !important;
+    padding-bottom: 24px !important;
+  }
+
+  .premium-login-card {
+    margin-top: 0 !important;
+  }
+
+  .login-card-head h2 {
+    margin-top: 0 !important;
+  }
+}
+
+/* StorePlug final login polish override */
+
+/* Real iOS overscroll/canvas background fix */
+html,
+body,
+#root {
+  background: #f7f8fa !important;
+  background-color: #f7f8fa !important;
+}
+
+body {
+  min-height: 100dvh !important;
+}
+
+.premium-login-page,
+.login-page {
+  background:
+    radial-gradient(circle at top left, rgba(30, 43, 77, 0.08), transparent 34%),
+    linear-gradient(180deg, #f7f8fa 0%, #eef3f9 100%) !important;
+  background-color: #f7f8fa !important;
+  min-height: 100dvh !important;
+}
+
+/* Force SP badge to render as a premium brand mark */
+.premium-login-card .login-brand-mini,
+.login-brand-mini {
+  width: 52px !important;
+  height: 52px !important;
+  margin: 0 auto 18px !important;
+  border-radius: 16px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: linear-gradient(180deg, #1a2744 0%, #101828 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 10px 22px rgba(16, 24, 40, 0.18) !important;
+}
+
+.premium-login-card .login-brand-mini span,
+.login-brand-mini span {
+  color: #ffffff !important;
+  font-size: 15px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.03em !important;
+}
+
+/* Error card: no more inline joined text */
+.premium-login-card .login-error-card,
+.login-error-card {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: 22px 1fr !important;
+  column-gap: 10px !important;
+  row-gap: 2px !important;
+  align-items: start !important;
+  text-align: left !important;
+  padding: 12px 14px !important;
+  margin: 2px 0 4px !important;
+  background: #fef3f2 !important;
+  border: 1px solid #fecdca !important;
+  border-radius: 12px !important;
+  color: #b42318 !important;
+  box-shadow: none !important;
+}
+
+.premium-login-card .login-error-card::before,
+.login-error-card::before {
+  content: "!" !important;
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 999px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: #fee4e2 !important;
+  color: #b42318 !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  grid-row: 1 / span 2 !important;
+  margin-top: 1px !important;
+}
+
+.premium-login-card .login-error-card strong,
+.login-error-card strong {
+  display: block !important;
+  font-size: 14px !important;
+  line-height: 18px !important;
+  font-weight: 800 !important;
+  color: #b42318 !important;
+  margin: 0 !important;
+}
+
+.premium-login-card .login-error-card span,
+.login-error-card span {
+  display: block !important;
+  font-size: 14px !important;
+  line-height: 20px !important;
+  font-weight: 600 !important;
+  color: rgba(180, 35, 24, 0.88) !important;
+  margin: 0 !important;
+}
+
+/* Password input wrapper + focus */
+.premium-login-card .password-input-wrap,
+.password-input-wrap {
+  display: flex !important;
+  align-items: center !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(16, 24, 40, 0.12) !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.premium-login-card .password-input-wrap:focus-within,
+.password-input-wrap:focus-within {
+  border-color: #1e2b4d !important;
+  box-shadow: 0 0 0 3px rgba(30, 43, 77, 0.12) !important;
+}
+
+.premium-login-card .password-input-wrap input,
+.password-input-wrap input {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  flex: 1 1 auto !important;
+}
+
+/* Show/Hide must be ghost, not primary */
+.premium-login-card .password-toggle-btn,
+.password-toggle-btn,
+button.password-toggle-btn {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #475467 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  min-width: auto !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 10px 14px !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+}
+
+.premium-login-card .password-toggle-btn:hover,
+.premium-login-card .password-toggle-btn:focus,
+.password-toggle-btn:hover,
+.password-toggle-btn:focus {
+  background: rgba(16, 24, 40, 0.04) !important;
+  color: #101828 !important;
+  outline: none !important;
+}
+
+/* Normal login input focus */
+.premium-login-card input:not([type="password"]):focus,
+.premium-login-card textarea:focus {
+  border-color: #1e2b4d !important;
+  box-shadow: 0 0 0 3px rgba(30, 43, 77, 0.12) !important;
+  outline: none !important;
 }

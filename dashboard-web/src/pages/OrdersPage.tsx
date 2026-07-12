@@ -100,6 +100,10 @@ export function OrdersPage({
           </div>
         </article>
       ))}
+
+      {orders.length > 0 && (
+        <p className="orders-end-note">End of orders</p>
+      )}
     </div>
   );
 }
