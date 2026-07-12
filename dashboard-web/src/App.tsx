@@ -6,6 +6,7 @@ import { StoreProfilePage } from "./pages/StoreProfilePage";
 import { AdminSummaryPage } from "./pages/AdminSummaryPage";
 import { AdminPlansPage } from "./pages/AdminPlansPage";
 import { AdminPaymentsPage } from "./pages/AdminPaymentsPage";
+import { AdminSellersPage } from "./pages/AdminSellersPage";
 import { Sidebar } from "./layouts/Sidebar";
 import { DashboardShell } from "./layouts/DashboardShell";
 import "./App.css";
@@ -2260,13 +2261,31 @@ try {
               )}
               {/* ADMIN SELECTED STORE EXTEND BUTTON */}
               {isPlatformAdmin && activeTab === "adminSellers" && (
-                <button
-                  type="button"
-                  className="extend-subscription-btn"
-                  onClick={extendSelectedStoreSubscription}
-                >
-                  Extend subscription 30 days
-                </button>
+                <AdminSellersPage
+                  adminStores={adminStores}
+                  filteredAdminStores={filteredAdminStores}
+                  adminStoreSearch={adminStoreSearch}
+                  setAdminStoreSearch={setAdminStoreSearch}
+                  adminStoreFilter={adminStoreFilter}
+                  setAdminStoreFilter={setAdminStoreFilter}
+                  adminPlanDrafts={adminPlanDrafts}
+                  setAdminPlanDrafts={setAdminPlanDrafts}
+                  subscriptionPlans={subscriptionPlans}
+                  loadingSubscriptionPlans={loadingSubscriptionPlans}
+                  loadAdminStores={loadAdminStores}
+                  loadingAdminStores={loadingAdminStores}
+                  exportAdminStoresCsv={exportAdminStoresCsv}
+                  formatPlanName={formatPlanName}
+                  formatMonthlyFee={formatMonthlyFee}
+                  formatSubscriptionDate={formatSubscriptionDate}
+                  getComputedSubscriptionStatus={getComputedSubscriptionStatus}
+                  getSubscriptionTimeClass={getSubscriptionTimeClass}
+                  getSubscriptionTimeLabel={getSubscriptionTimeLabel}
+                  extendSelectedStoreSubscription={extendSelectedStoreSubscription}
+                  extendAdminStoreSubscription={extendAdminStoreSubscription}
+                  adminChangeStorePlan={adminChangeStorePlan}
+                  adminSetStoreSuspension={adminSetStoreSuspension}
+                />
               )}
 
 
@@ -2294,204 +2313,7 @@ try {
                 />
               )}
               {/* ADMIN ALL STORES PANEL */}
-              {isPlatformAdmin && activeTab === "adminSellers" && (
-                <div className="admin-stores-panel">
-                  <div className="admin-stores-header">
-                    <div>
-                      <h3>Admin seller stores</h3>
-                      <p>Extend subscriptions for sellers who have paid you.</p>
-                    </div>
-
-                    <div className="admin-header-actions">
-                      <button
-                        type="button"
-                        onClick={loadAdminStores}
-                        disabled={loadingAdminStores}
-                      >
-                        {loadingAdminStores ? "Loading..." : "Refresh sellers"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={exportAdminStoresCsv}
-                      >
-                        Export sellers CSV
-                      </button>
-                    </div>
-                  </div>
-
-                  {adminStores.length === 0 ? (
-                    <p className="muted">Click Refresh sellers to load all stores.</p>
-                  ) : (
-                    <>
-                      <div className="admin-store-search">
-                        <input
-                          value={adminStoreSearch}
-                          onChange={(e) => setAdminStoreSearch(e.target.value)}
-                          placeholder="Search sellers by store, slug, owner, or email..."
-                        />
-
-                        {adminStoreSearch && (
-                          <button
-                            type="button"
-                            onClick={() => setAdminStoreSearch("")}
-                          >
-                            Clear
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="admin-store-filters">
-                        {(["all", "active", "trial", "expired", "suspended", "expiring"] as const).map((filter) => (
-                          <button
-                            key={filter}
-                            type="button"
-                            className={adminStoreFilter === filter ? "active" : ""}
-                            onClick={() => setAdminStoreFilter(filter)}
-                          >
-                            {filter === "expiring" ? "Expiring soon" : formatPlanName(filter)}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="admin-store-list">
-                        {filteredAdminStores.map((store) => (
-                        <div className="admin-store-card" key={store.id}>
-                          <div>
-                            <h4>{store.name}</h4>
-                            <p>/{store.slug}</p>
-                            <p>{store.owner_name} — {store.owner_email}</p>
-                          </div>
-
-                          <div>
-                            <span>Plan</span>
-                            <strong>{formatPlanName(store.plan_name)}</strong>
-                          </div>
-
-                          <div>
-                            <span>Status</span>
-                            <strong
-                              className={`subscription-status ${getComputedSubscriptionStatus(
-                                store.subscription_status,
-                                store.subscription_ends_at,
-                                store.is_suspended
-                              )}`}
-                            >
-                              {formatPlanName(
-                                getComputedSubscriptionStatus(
-                                  store.subscription_status,
-                                  store.subscription_ends_at,
-                                  store.is_suspended
-                                )
-                              )}
-                            </strong>
-                          </div>
-
-                          <div>
-                            <span>Monthly fee</span>
-                            <strong>{formatMonthlyFee(store.monthly_fee)}</strong>
-                          </div>
-
-                          <div className="admin-plan-change">
-                            <label>
-                              <span>Change plan</span>
-                              <select
-                                value={adminPlanDrafts[store.id] || store.plan_name || "starter"}
-                                onChange={(e) =>
-                                  setAdminPlanDrafts((prev) => ({
-                                    ...prev,
-                                    [store.id]: e.target.value,
-                                  }))
-                                }
-                                disabled={loadingSubscriptionPlans || subscriptionPlans.length === 0}
-                              >
-                                {subscriptionPlans.length === 0 ? (
-                                  <option value={store.plan_name || "starter"}>
-                                    {formatPlanName(store.plan_name)}
-                                  </option>
-                                ) : (
-                                  subscriptionPlans.map((plan) => (
-                                    <option key={plan.id} value={plan.name}>
-                                      {plan.display_name} — {formatMonthlyFee(plan.monthly_fee)}
-                                    </option>
-                                  ))
-                                )}
-                              </select>
-                            </label>
-
-                            <button
-                              type="button"
-                              className="save-store-plan-btn"
-                              onClick={() => adminChangeStorePlan(store)}
-                              disabled={
-                                loadingSubscriptionPlans ||
-                                subscriptionPlans.length === 0 ||
-                                (adminPlanDrafts[store.id] || store.plan_name) === store.plan_name
-                              }
-                            >
-                              Save plan
-                            </button>
-                          </div>
-
-                          <div>
-                            <span>Expires</span>
-                            <strong>{formatSubscriptionDate(store.subscription_ends_at)}</strong>
-                          </div>
-
-                          <div>
-                            <span>Time left</span>
-                            <strong
-                              className={`subscription-time ${getSubscriptionTimeClass(
-                                store.subscription_status,
-                                store.subscription_ends_at,
-                                store.is_suspended
-                              )}`}
-                            >
-                              {getSubscriptionTimeLabel(
-                                store.subscription_status,
-                                store.subscription_ends_at,
-                                store.is_suspended
-                              )}
-                            </strong>
-                          </div>
-
-                          <div className="admin-store-actions">
-                            <button
-                              type="button"
-                              className="extend-subscription-btn"
-                              onClick={() => extendAdminStoreSubscription(store.id)}
-                            >
-                              Extend 30 days
-                            </button>
-
-                            {store.is_suspended || store.subscription_status === "suspended" ? (
-                              <button
-                                type="button"
-                                className="reactivate-store-btn"
-                                onClick={() => adminSetStoreSuspension(store, false)}
-                              >
-                                Reactivate
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                className="suspend-store-btn"
-                                onClick={() => adminSetStoreSuspension(store, true)}
-                              >
-                                Suspend
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  
-                      {filteredAdminStores.length === 0 && (
-                        <p className="muted">No sellers match this filter.</p>
-                      )}
-                    </>)}
-                </div>
-              )}{/* ADMIN SUBSCRIPTION PAYMENTS PANEL */}
+              {/* ADMIN SUBSCRIPTION PAYMENTS PANEL */}
               {isPlatformAdmin && activeTab === "adminPayments" && (
                 <AdminPaymentsPage
                   adminSubscriptionPayments={adminSubscriptionPayments}
@@ -2515,4 +2337,3 @@ try {
     </DashboardShell>
   );
 }
-
