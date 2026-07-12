@@ -44,6 +44,10 @@ export function LoginPage({
 
         <form className="login-card premium-login-card" onSubmit={login}>
           <div className="login-card-head">
+            <div className="login-brand-mini" aria-hidden="true">
+              <span>SP</span>
+            </div>
+
             <h2>Sign in to StorePlug</h2>
             <p>Manage your storefront, orders, products, and payments from one workspace.</p>
           </div>
