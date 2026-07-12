@@ -63,7 +63,11 @@ export function Sidebar({
 
           <div className="brand-copy">
             <h2>StorePlug</h2>
-            <p className="muted">Merchant dashboard</p>
+            <p className="muted">
+              {isPlatformAdmin
+                ? "Platform workspace"
+                : "Merchant dashboard"}
+            </p>
           </div>
 
           <button
@@ -72,45 +76,76 @@ export function Sidebar({
             onClick={onClose}
             aria-label="Close dashboard menu"
           >
-            <span></span>
-            <span></span>
+            <span />
+            <span />
           </button>
         </div>
 
-        <div className="store-switcher">
-          <label>Current store</label>
-          <select
-            value={selectedStore?.id || ""}
-            onChange={(e) => onSelectStore(e.target.value)}
-          >
-            {stores.map((store) => (
-              <option key={store.id} value={store.id}>
-                {store.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <nav className="sidebar-nav">
-          <div className="nav-group">
+        <nav className="sidebar-nav" aria-label="Dashboard navigation">
+          <div className="nav-group store-nav-group">
             <p className="nav-group-title">Store</p>
 
+            <div className="store-switcher">
+              <label htmlFor="storeplug-current-store">
+                Current store
+              </label>
+
+              <select
+                id="storeplug-current-store"
+                value={selectedStore?.id || ""}
+                onChange={(event) =>
+                  onSelectStore(event.target.value)
+                }
+                disabled={stores.length === 0}
+              >
+                {stores.length === 0 ? (
+                  <option value="">
+                    No store available
+                  </option>
+                ) : (
+                  stores.map((store) => (
+                    <option
+                      key={store.id}
+                      value={store.id}
+                    >
+                      {store.name}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
             <button
-              className={activeTab === "orders" ? "nav-btn active" : "nav-btn"}
+              type="button"
+              className={
+                activeTab === "orders"
+                  ? "nav-btn active"
+                  : "nav-btn"
+              }
               onClick={() => onOpenTab("orders")}
             >
               Orders
             </button>
 
             <button
-              className={activeTab === "products" ? "nav-btn active" : "nav-btn"}
+              type="button"
+              className={
+                activeTab === "products"
+                  ? "nav-btn active"
+                  : "nav-btn"
+              }
               onClick={() => onOpenTab("products")}
             >
               Products
             </button>
 
             <button
-              className={activeTab === "settings" ? "nav-btn active" : "nav-btn"}
+              type="button"
+              className={
+                activeTab === "settings"
+                  ? "nav-btn active"
+                  : "nav-btn"
+              }
               onClick={() => onOpenTab("settings")}
             >
               Store profile
@@ -118,21 +153,39 @@ export function Sidebar({
           </div>
 
           {isPlatformAdmin && (
-            <div className="nav-group">
-              <p className="nav-group-title">Admin</p>
+            <div className="nav-group platform-admin-nav">
+              <div className="platform-admin-nav-heading">
+                <p className="nav-group-title">
+                  Platform Admin
+                </p>
+
+                <span className="platform-context-badge">
+                  Admin
+                </span>
+              </div>
 
               <button
-                className={activeTab === "adminSummary" ? "nav-btn active" : "nav-btn"}
+                type="button"
+                className={
+                  activeTab === "adminSummary"
+                    ? "nav-btn active"
+                    : "nav-btn"
+                }
                 onClick={() => {
                   onOpenTab("adminSummary");
                   onLoadAdminSubscriptionSummary();
                 }}
               >
-                Business overview
+                Platform overview
               </button>
 
               <button
-                className={activeTab === "adminSellers" ? "nav-btn active" : "nav-btn"}
+                type="button"
+                className={
+                  activeTab === "adminSellers"
+                    ? "nav-btn active"
+                    : "nav-btn"
+                }
                 onClick={() => {
                   onOpenTab("adminSellers");
                   onLoadAdminStores();
@@ -143,7 +196,12 @@ export function Sidebar({
               </button>
 
               <button
-                className={activeTab === "adminPlans" ? "nav-btn active" : "nav-btn"}
+                type="button"
+                className={
+                  activeTab === "adminPlans"
+                    ? "nav-btn active"
+                    : "nav-btn"
+                }
                 onClick={() => {
                   onOpenTab("adminPlans");
                   onLoadSubscriptionPlans();
@@ -153,7 +211,12 @@ export function Sidebar({
               </button>
 
               <button
-                className={activeTab === "adminPayments" ? "nav-btn active" : "nav-btn"}
+                type="button"
+                className={
+                  activeTab === "adminPayments"
+                    ? "nav-btn active"
+                    : "nav-btn"
+                }
                 onClick={() => {
                   onOpenTab("adminPayments");
                   onLoadAdminSubscriptionPayments();
@@ -165,16 +228,22 @@ export function Sidebar({
           )}
 
           <div className="nav-group nav-footer">
-            <a
-              className="public-link"
-              href={publicStoreUrl + "/" + (selectedStore?.slug || "")}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open public store
-            </a>
+            {selectedStore && (
+              <a
+                className="public-link"
+                href={`${publicStoreUrl}/${selectedStore.slug}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open public store
+              </a>
+            )}
 
-            <button className="logout-btn" onClick={onLogout}>
+            <button
+              type="button"
+              className="logout-btn"
+              onClick={onLogout}
+            >
               Logout
             </button>
           </div>

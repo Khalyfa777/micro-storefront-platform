@@ -535,6 +535,13 @@ const dashboardTabs: DashboardTab[] = [
   "adminPayments",
 ];
 
+const platformAdminTabs: DashboardTab[] = [
+  "adminSummary",
+  "adminSellers",
+  "adminPlans",
+  "adminPayments",
+];
+
 function getInitialDashboardTab(): DashboardTab {
   if (typeof window === "undefined") return "orders";
 
@@ -1937,6 +1944,10 @@ try {
 
     return payment.payment_method === subscriptionPaymentMethodFilter;
   });
+  const isAdminWorkspace =
+    isPlatformAdmin &&
+    platformAdminTabs.includes(activeTab);
+
   if (!token) {
     return (
       <LoginPage
@@ -1956,7 +1967,12 @@ try {
   return (
     <DashboardShell
       isSidebarOpen={isSidebarOpen}
-      selectedStoreName={selectedStore?.name || "Merchant dashboard"}
+      selectedStoreName={
+        isAdminWorkspace
+          ? "Platform Admin"
+          : selectedStore?.name ||
+            "Merchant dashboard"
+      }
       onOpenSidebar={() => setIsSidebarOpen(true)}
       sidebar={
         <Sidebar
@@ -1987,9 +2003,9 @@ try {
           <div>
             <h1>
               {activeTab === "adminSummary"
-                ? "Business overview"
+                ? "Platform overview"
                 : activeTab === "adminSellers"
-                  ? "Seller management"
+                  ? "Sellers"
                   : activeTab === "adminPlans"
                     ? "Plan settings"
                     : activeTab === "adminPayments"
@@ -2001,7 +2017,7 @@ try {
               {activeTab === "products" && "Add, edit, and manage your products."}
               {activeTab === "settings" && "Update your public store profile."}
               {activeTab === "adminSummary" && "Revenue, subscriptions, and platform health."}
-              {activeTab === "adminSellers" && "Manage seller stores, renewals, and suspensions."}
+              {activeTab === "adminSellers" && "Manage seller accounts, onboarding, stores, and access."}
               {activeTab === "adminPlans" && "Control plan pricing, product limits, and feature access."}
               {activeTab === "adminPayments" && "Review subscription payment records and exports."}
             </p>
@@ -2023,7 +2039,7 @@ try {
               }
             }}
           >
-            {isPlatformAdmin && ["adminSummary", "adminSellers", "adminPlans", "adminPayments"].includes(activeTab) ? "Refresh admin data" : "Refresh"}
+            {isPlatformAdmin && ["adminSummary", "adminSellers", "adminPlans", "adminPayments"].includes(activeTab) ? "Refresh platform data" : "Refresh"}
           </button>
         </div>
 
@@ -2031,7 +2047,9 @@ try {
         {message && <div className="success-box">{message}</div>}
 
         {/* SELLER SUBSCRIPTION WARNING BANNER */}
-        {selectedStore && shouldShowSubscriptionBanner(selectedStore) && (
+        {!isAdminWorkspace &&
+          selectedStore &&
+          shouldShowSubscriptionBanner(selectedStore) && (
           <div
             className={`subscription-warning-banner ${getSubscriptionTimeClass(
               selectedStore.subscription_status,
@@ -2127,212 +2145,139 @@ try {
           />
         )}
 
-        {isPlatformAdmin && (activeTab === "adminSummary" || activeTab === "adminSellers" || activeTab === "adminPlans" || activeTab === "adminPayments") && (
-          <div className={`settings-layout admin-layout admin-page-${activeTab}`}>
-            <form className="settings-card" onSubmit={saveStoreSettings}>
-              <h2>
-                {activeTab === "adminSummary"
-                  ? "Business overview"
-                  : activeTab === "adminSellers"
-                    ? "Seller management"
-                    : activeTab === "adminPlans"
-                      ? "Plan settings"
-                      : "Payments"}
-              </h2>
+        {isAdminWorkspace && (
+          <section
+            className={`admin-workspace admin-page-${activeTab}`}
+            aria-label="Platform Admin workspace"
+          >
+            {activeTab === "adminSellers" && (
+              <AdminSellersPage
+                adminStores={adminStores}
+                filteredAdminStores={filteredAdminStores}
+                adminStoreSearch={adminStoreSearch}
+                setAdminStoreSearch={setAdminStoreSearch}
+                adminStoreFilter={adminStoreFilter}
+                setAdminStoreFilter={setAdminStoreFilter}
+                adminPlanDrafts={adminPlanDrafts}
+                setAdminPlanDrafts={setAdminPlanDrafts}
+                subscriptionPlans={subscriptionPlans}
+                loadingSubscriptionPlans={
+                  loadingSubscriptionPlans
+                }
+                loadAdminStores={loadAdminStores}
+                loadingAdminStores={loadingAdminStores}
+                exportAdminStoresCsv={
+                  exportAdminStoresCsv
+                }
+                formatPlanName={formatPlanName}
+                formatMonthlyFee={formatMonthlyFee}
+                formatSubscriptionDate={
+                  formatSubscriptionDate
+                }
+                getComputedSubscriptionStatus={
+                  getComputedSubscriptionStatus
+                }
+                getSubscriptionTimeClass={
+                  getSubscriptionTimeClass
+                }
+                getSubscriptionTimeLabel={
+                  getSubscriptionTimeLabel
+                }
+                extendSelectedStoreSubscription={
+                  extendSelectedStoreSubscription
+                }
+                extendAdminStoreSubscription={
+                  extendAdminStoreSubscription
+                }
+                adminChangeStorePlan={
+                  adminChangeStorePlan
+                }
+                adminSetStoreSuspension={
+                  adminSetStoreSuspension
+                }
+              />
+            )}
 
-              
-              {/* SETTINGS SUBSCRIPTION CARD */}
-              {selectedStore && (
-                <div className="subscription-summary-card">
-                  <div>
-                    <span>Current plan</span>
-                    <strong>{formatPlanName(selectedStore.plan_name)}</strong>
-                  </div>
+            {activeTab === "adminPlans" && (
+              <AdminPlansPage
+                subscriptionPlans={subscriptionPlans}
+                planDrafts={planDrafts}
+                loadingSubscriptionPlans={
+                  loadingSubscriptionPlans
+                }
+                loadSubscriptionPlans={
+                  loadSubscriptionPlans
+                }
+                updatePlanDraft={(
+                  planName,
+                  field,
+                  value,
+                ) =>
+                  updatePlanDraft(
+                    planName,
+                    field as keyof SubscriptionPlanDraft,
+                    value,
+                  )
+                }
+                saveSubscriptionPlan={
+                  saveSubscriptionPlan
+                }
+              />
+            )}
 
-                  <div>
-                    <span>Status</span>
-                    <strong
-                      className={`subscription-status ${getComputedSubscriptionStatus(
-                        selectedStore.subscription_status,
-                        selectedStore.subscription_ends_at,
-                        selectedStore.is_suspended
-                      )}`}
-                    >
-                      {formatPlanName(
-                        getComputedSubscriptionStatus(
-                          selectedStore.subscription_status,
-                          selectedStore.subscription_ends_at,
-                          selectedStore.is_suspended
-                        )
-                      )}
-                    </strong>
-                  </div>
+            {activeTab === "adminSummary" && (
+              <AdminSummaryPage
+                adminSubscriptionSummary={
+                  adminSubscriptionSummary
+                }
+                loadingAdminSubscriptionSummary={
+                  loadingAdminSubscriptionSummary
+                }
+                loadAdminSubscriptionSummary={
+                  loadAdminSubscriptionSummary
+                }
+                formatMonthlyFee={
+                  formatMonthlyFee
+                }
+              />
+            )}
 
-                  <div>
-                    <span>Monthly fee</span>
-                    <strong>{formatMonthlyFee(selectedStore.monthly_fee)}</strong>
-                  </div>
-
-                  <div>
-                    <span>Expires</span>
-                    <strong>{formatSubscriptionDate(selectedStore.subscription_ends_at)}</strong>
-                  </div>
-                </div>
-              )}
-
-              {/* PRODUCT USAGE CARD */}
-              {selectedStore && (
-                <div className="product-usage-card">
-                  <div className="product-usage-head">
-                    <div>
-                      <span>Product usage</span>
-                      <h3>
-                        {subscriptionUsage?.display_name ||
-                          formatPlanName(selectedStore.plan_name)}
-                      </h3>
-                    </div>
-
-                    <strong>
-                      {loadingSubscriptionUsage
-                        ? "Loading..."
-                        : formatProductUsageLabel(subscriptionUsage)}
-                    </strong>
-                  </div>
-
-                  <div className="product-usage-progress">
-                    <div
-                      className={`product-usage-progress-fill ${getProductUsageClass(
-                        subscriptionUsage
-                      )}`}
-                      style={{
-                        width: `${getProductUsagePercent(subscriptionUsage)}%`,
-                      }}
-                    />
-                  </div>
-
-                  <div className="product-usage-meta">
-                    <span>{formatRemainingProducts(subscriptionUsage)}</span>
-                    <span>
-                      Monthly fee:{" "}
-                      {formatMonthlyFee(
-                        subscriptionUsage?.monthly_fee ?? selectedStore.monthly_fee
-                      )}
-                    </span>
-                  </div>
-
-                  {subscriptionUsage && (
-                    <div className="plan-feature-chips">
-                      <span
-                        className={`plan-feature-chip ${
-                          subscriptionUsage.can_upload_images ? "enabled" : "disabled"
-                        }`}
-                      >
-                        Images: {subscriptionUsage.can_upload_images ? "Enabled" : "Disabled"}
-                      </span>
-
-                      <span
-                        className={`plan-feature-chip ${
-                          subscriptionUsage.can_receive_online_payments ? "enabled" : "disabled"
-                        }`}
-                      >
-                        Online payments:{" "}
-                        {subscriptionUsage.can_receive_online_payments ? "Enabled" : "Disabled"}
-                      </span>
-
-                      <span
-                        className={`plan-feature-chip ${
-                          subscriptionUsage.can_use_custom_domain ? "enabled" : "disabled"
-                        }`}
-                      >
-                        Custom domain:{" "}
-                        {subscriptionUsage.can_use_custom_domain ? "Enabled" : "Disabled"}
-                      </span>
-
-                      <span
-                        className={`plan-feature-chip ${
-                          subscriptionUsage.plan_is_active ? "enabled" : "disabled"
-                        }`}
-                      >
-                        Plan: {subscriptionUsage.plan_is_active ? "Active" : "Inactive"}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-              {/* ADMIN SELECTED STORE EXTEND BUTTON */}
-              {isPlatformAdmin && activeTab === "adminSellers" && (
-                <AdminSellersPage
-                  adminStores={adminStores}
-                  filteredAdminStores={filteredAdminStores}
-                  adminStoreSearch={adminStoreSearch}
-                  setAdminStoreSearch={setAdminStoreSearch}
-                  adminStoreFilter={adminStoreFilter}
-                  setAdminStoreFilter={setAdminStoreFilter}
-                  adminPlanDrafts={adminPlanDrafts}
-                  setAdminPlanDrafts={setAdminPlanDrafts}
-                  subscriptionPlans={subscriptionPlans}
-                  loadingSubscriptionPlans={loadingSubscriptionPlans}
-                  loadAdminStores={loadAdminStores}
-                  loadingAdminStores={loadingAdminStores}
-                  exportAdminStoresCsv={exportAdminStoresCsv}
-                  formatPlanName={formatPlanName}
-                  formatMonthlyFee={formatMonthlyFee}
-                  formatSubscriptionDate={formatSubscriptionDate}
-                  getComputedSubscriptionStatus={getComputedSubscriptionStatus}
-                  getSubscriptionTimeClass={getSubscriptionTimeClass}
-                  getSubscriptionTimeLabel={getSubscriptionTimeLabel}
-                  extendSelectedStoreSubscription={extendSelectedStoreSubscription}
-                  extendAdminStoreSubscription={extendAdminStoreSubscription}
-                  adminChangeStorePlan={adminChangeStorePlan}
-                  adminSetStoreSuspension={adminSetStoreSuspension}
-                />
-              )}
-
-
-
-              {/* ADMIN PLAN SETTINGS PANEL */}
-              {isPlatformAdmin && activeTab === "adminPlans" && (
-                <AdminPlansPage
-                  subscriptionPlans={subscriptionPlans}
-                  planDrafts={planDrafts}
-                  loadingSubscriptionPlans={loadingSubscriptionPlans}
-                  loadSubscriptionPlans={loadSubscriptionPlans}
-                  updatePlanDraft={(planName, field, value) =>
-                    updatePlanDraft(planName, field as any, value as any)
-                  }
-                  saveSubscriptionPlan={saveSubscriptionPlan}
-                />
-              )}
-              {/* ADMIN SUBSCRIPTION SUMMARY PANEL */}
-              {isPlatformAdmin && activeTab === "adminSummary" && (
-                <AdminSummaryPage
-                  adminSubscriptionSummary={adminSubscriptionSummary}
-                  loadingAdminSubscriptionSummary={loadingAdminSubscriptionSummary}
-                  loadAdminSubscriptionSummary={loadAdminSubscriptionSummary}
-                  formatMonthlyFee={formatMonthlyFee}
-                />
-              )}
-              {/* ADMIN ALL STORES PANEL */}
-              {/* ADMIN SUBSCRIPTION PAYMENTS PANEL */}
-              {isPlatformAdmin && activeTab === "adminPayments" && (
-                <AdminPaymentsPage
-                  adminSubscriptionPayments={adminSubscriptionPayments}
-                  filteredSubscriptionPayments={filteredSubscriptionPayments}
-                  subscriptionPaymentSearch={subscriptionPaymentSearch}
-                  setSubscriptionPaymentSearch={setSubscriptionPaymentSearch}
-                  subscriptionPaymentMethodFilter={subscriptionPaymentMethodFilter}
-                  setSubscriptionPaymentMethodFilter={setSubscriptionPaymentMethodFilter}
-                  loadAdminSubscriptionPayments={loadAdminSubscriptionPayments}
-                  loadingAdminSubscriptionPayments={loadingAdminSubscriptionPayments}
-                  exportSubscriptionPaymentsCsv={exportSubscriptionPaymentsCsv}
-                  formatPlanName={formatPlanName}
-                  formatSubscriptionDate={formatSubscriptionDate}
-                />
-              )}
-
-            </form>
-
-          </div>
+            {activeTab === "adminPayments" && (
+              <AdminPaymentsPage
+                adminSubscriptionPayments={
+                  adminSubscriptionPayments
+                }
+                filteredSubscriptionPayments={
+                  filteredSubscriptionPayments
+                }
+                subscriptionPaymentSearch={
+                  subscriptionPaymentSearch
+                }
+                setSubscriptionPaymentSearch={
+                  setSubscriptionPaymentSearch
+                }
+                subscriptionPaymentMethodFilter={
+                  subscriptionPaymentMethodFilter
+                }
+                setSubscriptionPaymentMethodFilter={
+                  setSubscriptionPaymentMethodFilter
+                }
+                loadAdminSubscriptionPayments={
+                  loadAdminSubscriptionPayments
+                }
+                loadingAdminSubscriptionPayments={
+                  loadingAdminSubscriptionPayments
+                }
+                exportSubscriptionPaymentsCsv={
+                  exportSubscriptionPaymentsCsv
+                }
+                formatPlanName={formatPlanName}
+                formatSubscriptionDate={
+                  formatSubscriptionDate
+                }
+              />
+            )}
+          </section>
         )}
     </DashboardShell>
   );

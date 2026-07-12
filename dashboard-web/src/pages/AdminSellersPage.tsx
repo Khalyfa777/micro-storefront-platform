@@ -1,40 +1,122 @@
+import type {
+  Dispatch,
+  SetStateAction,
+} from "react";
+
+
+type AdminStoreFilter =
+  | "all"
+  | "active"
+  | "trial"
+  | "expired"
+  | "suspended"
+  | "expiring";
+
+
+type AdminStoreItem = {
+  id: string;
+  owner_id: string;
+  owner_email: string;
+  owner_name: string;
+  slug: string;
+  name: string;
+  plan_name: string;
+  subscription_status: string;
+  monthly_fee: string | number;
+  subscription_ends_at?: string | null;
+  last_payment_at?: string | null;
+  is_active: boolean;
+  is_suspended: boolean;
+};
+
+
+type AdminSubscriptionPlanItem = {
+  id: string;
+  name: string;
+  display_name: string;
+  monthly_fee: string | number;
+  product_limit?: number | null;
+  can_upload_images: boolean;
+  can_use_custom_domain: boolean;
+  can_receive_online_payments: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+
 type AdminSellersPageProps = {
-  adminStores: any[];
-  filteredAdminStores: any[];
+  adminStores: AdminStoreItem[];
+  filteredAdminStores: AdminStoreItem[];
+
   adminStoreSearch: string;
   setAdminStoreSearch: (value: string) => void;
-  adminStoreFilter: string;
-  setAdminStoreFilter: (value: any) => void;
+
+  adminStoreFilter: AdminStoreFilter;
+  setAdminStoreFilter: Dispatch<
+    SetStateAction<AdminStoreFilter>
+  >;
+
   adminPlanDrafts: Record<string, string>;
-  setAdminPlanDrafts: any;
-  subscriptionPlans: any[];
+  setAdminPlanDrafts: Dispatch<
+    SetStateAction<Record<string, string>>
+  >;
+
+  subscriptionPlans: AdminSubscriptionPlanItem[];
   loadingSubscriptionPlans: boolean;
+
   loadAdminStores: () => void | Promise<void>;
   loadingAdminStores: boolean;
+
   exportAdminStoresCsv: () => void;
-  formatPlanName: (value?: string | null) => string;
-  formatMonthlyFee: (value?: string | number | null) => string;
-  formatSubscriptionDate: (value?: string | null) => string;
+
+  formatPlanName: (
+    value?: string | null
+  ) => string;
+
+  formatMonthlyFee: (
+    value?: string | number | null
+  ) => string;
+
+  formatSubscriptionDate: (
+    value?: string | null
+  ) => string;
+
   getComputedSubscriptionStatus: (
     status?: string | null,
     endsAt?: string | null,
-    isSuspended?: boolean
+    isSuspended?: boolean,
   ) => string;
+
   getSubscriptionTimeClass: (
     status?: string | null,
     endsAt?: string | null,
-    isSuspended?: boolean
+    isSuspended?: boolean,
   ) => string;
+
   getSubscriptionTimeLabel: (
     status?: string | null,
     endsAt?: string | null,
-    isSuspended?: boolean
+    isSuspended?: boolean,
   ) => string;
-  extendSelectedStoreSubscription: () => void | Promise<void>;
-  extendAdminStoreSubscription: (storeId: string) => void | Promise<void>;
-  adminChangeStorePlan: (store: any) => void | Promise<void>;
-  adminSetStoreSuspension: (store: any, suspended: boolean) => void | Promise<void>;
+
+  extendSelectedStoreSubscription: (
+  ) => void | Promise<void>;
+
+  extendAdminStoreSubscription: (
+    storeId: string
+  ) => void | Promise<void>;
+
+  adminChangeStorePlan: (
+    store: AdminStoreItem
+  ) => void | Promise<void>;
+
+  adminSetStoreSuspension: (
+    store: AdminStoreItem,
+    suspended: boolean,
+  ) => void | Promise<void>;
 };
+
 
 export function AdminSellersPage({
   adminStores,
@@ -130,7 +212,7 @@ export function AdminSellersPage({
                   <div>
                     <h4>{store.name}</h4>
                     <p>/{store.slug}</p>
-                    <p>{store.owner_name} � {store.owner_email}</p>
+                    <p>{store.owner_name} ? {store.owner_email}</p>
                   </div>
 
                   <div>
@@ -182,7 +264,7 @@ export function AdminSellersPage({
                         ) : (
                           subscriptionPlans.map((plan) => (
                             <option key={plan.id} value={plan.name}>
-                              {plan.display_name} � {formatMonthlyFee(plan.monthly_fee)}
+                              {plan.display_name} ? {formatMonthlyFee(plan.monthly_fee)}
                             </option>
                           ))
                         )}

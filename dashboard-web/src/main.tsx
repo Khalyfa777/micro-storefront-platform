@@ -12,3 +12,4 @@ createRoot(document.getElementById('root')!).render(
 
 import "./mobile-shell.css";
 import "./dashboard-polish.css";
+import "./admin-workspace.css";
