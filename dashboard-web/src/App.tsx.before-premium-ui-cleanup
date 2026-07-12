@@ -513,7 +513,6 @@ const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
-  const [loginDebug, setLoginDebug] = useState("");
 
   const [stores, setStores] = useState<Store[]>([]);
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
@@ -525,7 +524,6 @@ const [email, setEmail] = useState("");
 
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm);
   const [editingProductId, setEditingProductId] = useState<string>("");
-  const [isProductFormOpen, setIsProductFormOpen] = useState(false);
 
   const [storeForm, setStoreForm] = useState<StoreForm>(emptyStoreForm);
 
@@ -589,48 +587,31 @@ const [error, setError] = useState("");
 
     setError("");
     setMessage("");
-    setLoginDebug("Login clicked.");
 
     if (!loginEmail || !loginPassword) {
       setError("Enter your email and password.");
-      setLoginDebug("Stopped: email or password is empty.");
       return;
     }
 
     setLoginLoading(true);
 
-    const loginBase =
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1" ||
-      /^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$/.test(window.location.hostname)
-        ? "/api/v1"
-        : API_URL;
-
-    const url = `${loginBase}/auth/login`;
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 12000);
-    const startedAt = Date.now();
-
     try {
-      setLoginDebug(`Host: ${window.location.hostname}\nTrying: ${url}`);
-      setMessage("Signing in...");
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 15000);
 
-      const res = await fetch(url, {
+      const res = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Accept": "application/json",
         },
-        cache: "no-store",
         body: JSON.stringify({
           email: loginEmail,
           password: loginPassword,
         }),
         signal: controller.signal,
+      }).finally(() => {
+        window.clearTimeout(timeoutId);
       });
-
-      const elapsed = Date.now() - startedAt;
-      setLoginDebug(`Response: HTTP ${res.status} in ${elapsed}ms`);
 
       const data = await res.json().catch(() => null);
 
@@ -646,24 +627,14 @@ const [error, setError] = useState("");
       setToken(data.access_token);
       setEmail(loginEmail);
       setPassword("");
-      setMessage("");
-      setLoginDebug("Login successful. Token saved.");
+      setMessage("Login successful.");
     } catch (err) {
-      const elapsed = Date.now() - startedAt;
-
       if (err instanceof DOMException && err.name === "AbortError") {
-        setError("Login request timed out.");
-        setLoginDebug(`Timeout after ${elapsed}ms while trying: ${url}`);
+        setError("Login request timed out. Your phone reached the page, but the API request did not complete.");
       } else {
         setError(err instanceof Error ? err.message : "Something went wrong");
-        setLoginDebug(
-          err instanceof Error
-            ? `Failed after ${elapsed}ms: ${err.message}\nURL: ${url}`
-            : `Failed after ${elapsed}ms\nURL: ${url}`
-        );
       }
     } finally {
-      window.clearTimeout(timeoutId);
       setLoginLoading(false);
     }
   }
@@ -743,7 +714,6 @@ try {
 
   function startEditingProduct(product: Product) {
     setEditingProductId(product.id);
-    setIsProductFormOpen(true);
     setProductForm({
       name: product.name,
       slug: product.slug,
@@ -765,7 +735,6 @@ try {
   function cancelProductEdit() {
     setEditingProductId("");
     setProductForm(emptyProductForm);
-    setIsProductFormOpen(false);
   }
 
 
@@ -914,7 +883,6 @@ try {
 
       setProductForm(emptyProductForm);
       setEditingProductId("");
-      setIsProductFormOpen(false);
       await loadProducts(selectedStore.id);
       await loadSubscriptionUsage(selectedStore.id);
     } catch (err) {
@@ -1928,10 +1896,6 @@ try {
               {loginLoading ? "Signing in..." : "Login to dashboard"}
             </button>
 
-            {loginDebug && (
-              <pre className="login-debug-panel">{loginDebug}</pre>
-            )}
-
             <p className="login-security-note">
               Your dashboard session is protected with secure merchant authentication.
             </p>
@@ -2110,24 +2074,25 @@ try {
       </aside>
 
       <section className="content">
-        <div className={`topbar topbar-${activeTab}`}>
+        <div className="topbar">
           <div>
             <h1>
-              {activeTab === "adminSummary"
-                ? "Business overview"
-                : activeTab === "adminSellers"
-                  ? "Seller management"
-                  : activeTab === "adminPlans"
-                    ? "Plan settings"
-                    : activeTab === "adminPayments"
-                      ? "Payments"
-                      : selectedStore?.name || "Dashboard"}
+              {activeTab === "adminSummary" && "Business overview"}
+              {activeTab === "adminSellers" && "Seller management"}
+              {activeTab === "adminPlans" && "Plan settings"}
+                {activeTab === "adminPayments" && "Payments"}
+              {activeTab === "adminPayments" && "Payments"}
+              {activeTab !== "adminSummary" &&
+                activeTab !== "adminSellers" &&
+                activeTab !== "adminPlans" &&
+                activeTab !== "adminPayments" &&
+                (selectedStore?.name || "Dashboard")}
             </h1>
             <p className="muted">
               {activeTab === "orders" && "Track customer orders and payment status."}
               {activeTab === "products" && "Add, edit, and manage your products."}
               {activeTab === "settings" && "Update your public store profile."}
-              {activeTab === "adminSummary" && "Revenue, subscriptions, and platform health."}
+              {activeTab === "adminSummary" && "Revenue, subscription health, and platform performance."}
               {activeTab === "adminSellers" && "Manage seller stores, renewals, and suspensions."}
               {activeTab === "adminPlans" && "Control plan pricing, product limits, and feature access."}
               {activeTab === "adminPayments" && "Review subscription payment records and exports."}
@@ -2263,280 +2228,205 @@ try {
         )}
 
         {activeTab === "products" && (
-          <div className="products-layout premium-products-page">
-            <div className="product-toolbar">
-              <div>
-                <span className="section-kicker">Inventory</span>
-                <h2>Products</h2>
-                <p>Manage listings, pricing, stock, and visibility.</p>
-              </div>
+          <div className="products-layout">
+            <form className="product-form" onSubmit={saveProduct}>
+              <h2>{editingProductId ? "Edit product" : "Add product"}</h2>
 
-              <button
-                type="button"
-                className="product-create-trigger"
-                onClick={() => {
-                  if (isProductFormOpen || editingProductId) {
-                    cancelProductEdit();
-                    return;
-                  }
-
-                  setIsProductFormOpen(true);
-                }}
-              >
-                {isProductFormOpen || editingProductId ? "Close form" : "Add product"}
-              </button>
-            </div>
-
-            {(isProductFormOpen || editingProductId) && (
-              <form className="product-form premium-product-form" onSubmit={saveProduct}>
-                <div className="form-section-title">
-                  <h2>{editingProductId ? "Edit product" : "Add product"}</h2>
-                  <p>{editingProductId ? "Update this listing." : "Create a new storefront listing."}</p>
-                </div>
-
-                {isProductLimitReachedForCreate() && (
-                  <div className="product-limit-warning">
-                    <strong>Product limit reached</strong>
-                    <p>{getProductLimitReachedMessage()}</p>
-                  </div>
-                )}
-
-                <label>
-                  Product name
-                  <input
-                    value={productForm.name}
-                    onChange={(e) => {
-                      const name = e.target.value;
-                      setProductForm((prev) => ({
-                        ...prev,
-                        name,
-                        slug: editingProductId ? prev.slug : makeSlug(name),
-                      }));
-                    }}
-                    placeholder="Nike Dunk Low"
-                    required
-                  />
-                </label>
-
-                <label>
-                  Slug
-                  <input
-                    value={productForm.slug}
-                    onChange={(e) =>
-                      setProductForm((prev) => ({
-                        ...prev,
-                        slug: makeSlug(e.target.value),
-                      }))
-                    }
-                    placeholder="nike-dunk-low"
-                    required
-                  />
-                </label>
-
-                <label>
-                  Description
-                  <textarea
-                    value={productForm.description}
-                    onChange={(e) =>
-                      setProductForm((prev) => ({
-                        ...prev,
-                        description: e.target.value,
-                      }))
-                    }
-                    placeholder="Short product description"
-                  />
-                </label>
-
-                <label className={"upload-dropzone " + (subscriptionUsage?.can_upload_images === false ? "disabled" : "")}>
-                  <input
-                    className="upload-file-input"
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    disabled={uploadingProductImage || loadingSubscriptionUsage || subscriptionUsage?.can_upload_images === false}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-
-                      if (file) {
-                        uploadProductImage(file);
-                      }
-                    }}
-                  />
-
-                  <span className="upload-icon">+</span>
-                  <span>
-                    <strong>{uploadingProductImage ? "Uploading image..." : "Upload product image"}</strong>
-                    <small>JPEG, PNG, or WEBP</small>
-                  </span>
-                </label>
-
-                {subscriptionUsage?.can_upload_images === false && (
-                  <p className="plan-restriction-note">
-                    Image uploads are disabled on your current plan. Upgrade to enable product images.
-                  </p>
-                )}
-
-                {productForm.image_url && (
-                  <div className="uploaded-image-preview">
-                    <img src={productForm.image_url} alt="Product preview" />
-                    <p>Image uploaded successfully</p>
-                  </div>
-                )}
-
-                <div className="two-cols">
-                  <label>
-                    Price
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={productForm.price}
-                      onChange={(e) =>
-                        setProductForm((prev) => ({
-                          ...prev,
-                          price: e.target.value,
-                        }))
-                      }
-                      placeholder="850"
-                      required
-                    />
-                  </label>
-
-                  <label>
-                    Stock
-                    <input
-                      type="number"
-                      min="0"
-                      value={productForm.stock_quantity}
-                      onChange={(e) =>
-                        setProductForm((prev) => ({
-                          ...prev,
-                          stock_quantity: e.target.value,
-                        }))
-                      }
-                      placeholder="10"
-                    />
-                  </label>
-                </div>
-
-                <div className="checks premium-switches">
-                  <label className="premium-switch-row">
-                    <input
-                      type="checkbox"
-                      checked={productForm.is_active}
-                      onChange={(e) =>
-                        setProductForm((prev) => ({
-                          ...prev,
-                          is_active: e.target.checked,
-                        }))
-                      }
-                    />
-                    <span className={"premium-switch " + (productForm.is_active ? "on" : "")}>
-                      <span></span>
-                    </span>
-                    <span>
-                      <strong>Active</strong>
-                      <small>Show on public store</small>
-                    </span>
-                  </label>
-
-                  <label className="premium-switch-row">
-                    <input
-                      type="checkbox"
-                      checked={productForm.is_featured}
-                      onChange={(e) =>
-                        setProductForm((prev) => ({
-                          ...prev,
-                          is_featured: e.target.checked,
-                        }))
-                      }
-                    />
-                    <span className={"premium-switch " + (productForm.is_featured ? "on" : "")}>
-                      <span></span>
-                    </span>
-                    <span>
-                      <strong>Featured</strong>
-                      <small>Highlight product</small>
-                    </span>
-                  </label>
-                </div>
-
-                <div className="form-actions premium-form-actions">
-                  <button type="submit" disabled={isProductSubmitDisabled()}>
-                    {getProductSubmitLabel()}
-                  </button>
-
-                  {(editingProductId || isProductFormOpen) && (
-                    <button type="button" className="secondary-form-btn" onClick={cancelProductEdit}>
-                      Cancel
-                    </button>
-                  )}
-                </div>
-              </form>
-            )}
-
-            <div className="product-list premium-product-list">
-              {products.length === 0 && (
-                <div className="empty-product-state">
-                  <h3>No products yet</h3>
-                  <p>Add your first product to start selling from your storefront.</p>
+              {isProductLimitReachedForCreate() && (
+                <div className="product-limit-warning">
+                  <strong>Product limit reached</strong>
+                  <p>{getProductLimitReachedMessage()}</p>
                 </div>
               )}
 
+              <label>
+                Product name
+                <input
+                  value={productForm.name}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setProductForm((prev) => ({
+                      ...prev,
+                      name,
+                      slug: editingProductId ? prev.slug : makeSlug(name),
+                    }));
+                  }}
+                  placeholder="Nike Dunk Low"
+                  required
+                />
+              </label>
+
+              <label>
+                Slug
+                <input
+                  value={productForm.slug}
+                  onChange={(e) =>
+                    setProductForm((prev) => ({
+                      ...prev,
+                      slug: makeSlug(e.target.value),
+                    }))
+                  }
+                  placeholder="nike-dunk-low"
+                  required
+                />
+              </label>
+
+              <label>
+                Description
+                <textarea
+                  value={productForm.description}
+                  onChange={(e) =>
+                    setProductForm((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  placeholder="Short product description"
+                />
+              </label>
+
+              <label>
+  Product image
+  <input
+    type="file"
+    accept="image/jpeg,image/png,image/webp"
+    disabled={uploadingProductImage || loadingSubscriptionUsage || subscriptionUsage?.can_upload_images === false}
+    onChange={(e) => {
+      const file = e.target.files?.[0];
+
+      if (file) {
+        uploadProductImage(file);
+      }
+    }}
+  />
+</label>
+
+{subscriptionUsage?.can_upload_images === false && (
+  <p className="plan-restriction-note">
+    Image uploads are disabled on your current plan. Upgrade to enable product images.
+  </p>
+)}
+
+{uploadingProductImage && (
+  <p className="upload-note">Uploading image...</p>
+)}
+
+{productForm.image_url && (
+  <div className="uploaded-image-preview">
+    <img src={productForm.image_url} alt="Product preview" />
+    <p>Image uploaded successfully</p>
+  </div>
+)}
+
+              <div className="two-cols">
+                <label>
+                  Price
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={productForm.price}
+                    onChange={(e) =>
+                      setProductForm((prev) => ({
+                        ...prev,
+                        price: e.target.value,
+                      }))
+                    }
+                    placeholder="850"
+                    required
+                  />
+                </label>
+
+                <label>
+                  Stock
+                  <input
+                    type="number"
+                    min="0"
+                    value={productForm.stock_quantity}
+                    onChange={(e) =>
+                      setProductForm((prev) => ({
+                        ...prev,
+                        stock_quantity: e.target.value,
+                      }))
+                    }
+                    placeholder="10"
+                  />
+                </label>
+              </div>
+
+              <div className="checks">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={productForm.is_active}
+                    onChange={(e) =>
+                      setProductForm((prev) => ({
+                        ...prev,
+                        is_active: e.target.checked,
+                      }))
+                    }
+                  />
+                  Active
+                </label>
+
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={productForm.is_featured}
+                    onChange={(e) =>
+                      setProductForm((prev) => ({
+                        ...prev,
+                        is_featured: e.target.checked,
+                      }))
+                    }
+                  />
+                  Featured
+                </label>
+              </div>
+
+              <div className="form-actions">
+                <button type="submit" disabled={isProductSubmitDisabled()}>{getProductSubmitLabel()}</button>
+
+                {editingProductId && (
+                  <button type="button" onClick={cancelProductEdit}>
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </form>
+
+            <div className="product-list">
+              {products.length === 0 && <p>No products yet.</p>}
+
               {products.map((product) => (
-                <article className="product-card premium-product-card" key={product.id}>
-                  <div className="product-card-top">
-                    <div className="product-thumb-box">
-                      {product.image_url ? (
-                        <img src={product.image_url} alt={product.name} />
-                      ) : (
-                        <span>{product.name.slice(0, 1).toUpperCase()}</span>
-                      )}
-                    </div>
+                <article className="product-card" key={product.id}>
+                  {product.image_url && (
+                    <img className="product-thumb" src={product.image_url} alt={product.name} />
+                  )}
 
-                    <div className="product-main-info">
-                      <div className="product-title-row">
-                        <div>
-                          <h3>{product.name}</h3>
-                          <p className="product-slug">/{product.slug}</p>
-                        </div>
-
-                        <div className="product-card-status">
-                          <span className={"pill product-status-pill " + (product.is_active ? "active-pill" : "inactive-pill")}>
-                            {product.is_active ? "Active" : "Inactive"}
-                          </span>
-
-                          {product.is_featured && <span className="pill featured-pill">Featured</span>}
-                        </div>
-                      </div>
-
-                      {product.description && (
-                        <p className="product-desc">{product.description}</p>
-                      )}
-                    </div>
+                  <div>
+                    <h3>{product.name}</h3>
+                    <p className="muted">/{product.slug}</p>
+                    <p>{product.description || "No description."}</p>
                   </div>
 
-                  <div className="product-card-stats">
-                    <div>
-                      <span>Price</span>
-                      <strong>GHS {Number(product.price).toFixed(2)}</strong>
-                    </div>
-
-                    <div>
-                      <span>Stock</span>
-                      <strong>{product.stock_quantity ?? "Unlimited"}</strong>
-                    </div>
+                  <div className="product-meta">
+                    <strong>GHS {Number(product.price).toFixed(2)}</strong>
+                    <span>Stock: {product.stock_quantity ?? "Unlimited"}</span>
+                    <span className={product.is_active ? "pill active-pill" : "pill inactive-pill"}>
+                      {product.is_active ? "Active" : "Inactive"}
+                    </span>
+                    {product.is_featured && <span className="pill">Featured</span>}
                   </div>
 
-                  <div className="product-card-actions">
-                    <button type="button" className="product-action-btn" onClick={() => startEditingProduct(product)}>
+                  <div className="actions">
+                    <button onClick={() => startEditingProduct(product)}>
                       Edit
                     </button>
-
-                    <button type="button" className="product-action-btn" onClick={() => toggleProductActive(product)}>
+                    <button onClick={() => toggleProductActive(product)}>
                       {product.is_active ? "Deactivate" : "Activate"}
                     </button>
-
-                    <button type="button" className="product-action-btn danger" onClick={() => deleteProduct(product)}>
+                    <button onClick={() => deleteProduct(product)}>
                       Remove
                     </button>
                   </div>
@@ -2547,18 +2437,13 @@ try {
         )}
 
         {(activeTab === "settings" || activeTab === "adminSummary" || activeTab === "adminSellers" || activeTab === "adminPlans" || activeTab === "adminPayments") && (
-          <div className={activeTab === "settings" ? "settings-layout store-profile-page" : `settings-layout admin-layout admin-page-${activeTab}`}>
+          <div className={activeTab === "settings" ? "settings-layout" : "settings-layout admin-layout"}>
             <form className="settings-card" onSubmit={saveStoreSettings}>
               <h2>
-                {activeTab === "settings"
-                  ? "Store profile"
-                  : activeTab === "adminSummary"
-                    ? "Business overview"
-                    : activeTab === "adminSellers"
-                      ? "Seller management"
-                      : activeTab === "adminPlans"
-                        ? "Plan settings"
-                        : "Payments"}
+                {activeTab === "settings" && "Store profile"}
+                {activeTab === "adminSummary" && "Business overview"}
+                {activeTab === "adminSellers" && "Seller management"}
+                {activeTab === "adminPlans" && "Plan settings"}
               </h2>
 
               

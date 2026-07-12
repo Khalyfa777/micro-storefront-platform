@@ -25,9 +25,9 @@ def upgrade() -> None:
                existing_type=sa.VARCHAR(length=20),
                type_=sa.String(length=50),
                existing_nullable=False)
-    op.drop_index('idx_subscription_payments_approved_by_user_id', table_name='subscription_payments')
-    op.drop_index('idx_subscription_payments_store_id', table_name='subscription_payments')
-    op.drop_index('idx_subscription_plans_name', table_name='subscription_plans')
+    op.execute("DROP INDEX IF EXISTS idx_subscription_payments_approved_by_user_id")
+    op.execute("DROP INDEX IF EXISTS idx_subscription_payments_store_id")
+    op.execute("DROP INDEX IF EXISTS idx_subscription_plans_name")
     # ### end Alembic commands ###
 
 

@@ -1,5 +1,7 @@
 "use client";
 
+import SafeProductImage from "./SafeProductImage";
+
 import { useState } from "react";
 
 
@@ -186,7 +188,7 @@ export default function OrderForm({
           <form className="order-form" onSubmit={submitOrder}>
             <h2>Place your order</h2>
             <p className="form-muted">
-              Enter your details, create the order, then pay securely.
+              Enter your details to create your order.
             </p>
 
             <label>
@@ -194,7 +196,7 @@ export default function OrderForm({
               <input
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Test Customer"
+                placeholder="Your full name"
                 required
                 disabled={isSoldOut}
               />
@@ -205,29 +207,29 @@ export default function OrderForm({
               <input
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
-                placeholder="0244123456"
+                placeholder="Your phone number"
                 required
                 disabled={isSoldOut}
               />
             </label>
 
             <label>
-              Email address optional
+              Email address (optional)
               <input
                 type="email"
                 value={customerEmail}
                 onChange={(e) => setCustomerEmail(e.target.value)}
-                placeholder="customer@example.com"
+                placeholder="Optional email address"
                 disabled={isSoldOut}
               />
             </label>
 
             <label>
-              Delivery address optional
+              Delivery address (optional)
               <textarea
                 value={deliveryAddress}
                 onChange={(e) => setDeliveryAddress(e.target.value)}
-                placeholder="Accra, Ghana"
+                placeholder="Delivery location or address"
                 disabled={isSoldOut}
               />
             </label>
@@ -253,11 +255,11 @@ export default function OrderForm({
             </label>
 
             <label>
-              Note optional
+              Note (optional)
               <textarea
                 value={customerNote}
                 onChange={(e) => setCustomerNote(e.target.value)}
-                placeholder="Please call me before delivery."
+                placeholder="Any delivery note"
                 disabled={isSoldOut}
               />
             </label>

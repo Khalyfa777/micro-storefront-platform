@@ -1,4 +1,35 @@
+import SafeProductImage from "../components/SafeProductImage";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+
+function getProductInitial(name?: string | null) {
+  const cleanName = String(name || "").trim();
+  return cleanName.charAt(0).toUpperCase() || "P";
+}
+
+function getSafeProductImageUrl(raw?: string | null) {
+  const value = String(raw ?? "").trim();
+
+  if (!value || value === "null" || value === "undefined") {
+    return "";
+  }
+
+  if (value.startsWith("data:image/")) return value;
+  if (/^https?:\/\//i.test(value)) return value;
+
+  let apiOrigin = "";
+
+  try {
+    apiOrigin = new URL(API_URL).origin;
+  } catch {
+    apiOrigin = "";
+  }
+
+  if (apiOrigin && (value.startsWith("/static/") || value.startsWith("/uploads/"))) {
+    return apiOrigin + value;
+  }
+
+  return "";
+}
 
 type Product = {
   id: string;
@@ -156,15 +187,11 @@ export default async function StorePage({
 
             return (
               <article className="product-card" key={product.id}>
-                {product.image_url ? (
-                  <img
-                    className="product-image"
-                    src={product.image_url}
-                    alt={product.name}
-                  />
-                ) : (
-                  <div className="product-image-placeholder">Product Image</div>
-                )}
+
+                <SafeProductImage
+                  imageUrl={product.image_url}
+                  productName={product.name}
+                />
 
                 <div className="product-body">
                   <div className="product-top">
