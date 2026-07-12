@@ -1,4 +1,14 @@
 import { useEffect, useState } from "react";
+import { LoginPage } from "./pages/LoginPage";
+import { OrdersPage } from "./pages/OrdersPage";
+import { ProductsPage } from "./pages/ProductsPage";
+import { StoreProfilePage } from "./pages/StoreProfilePage";
+import { AdminSummaryPage } from "./pages/AdminSummaryPage";
+import { AdminPlansPage } from "./pages/AdminPlansPage";
+import { AdminPaymentsPage } from "./pages/AdminPaymentsPage";
+import { AdminSellersPage } from "./pages/AdminSellersPage";
+import { Sidebar } from "./layouts/Sidebar";
+import { DashboardShell } from "./layouts/DashboardShell";
 import "./App.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
@@ -1929,256 +1939,50 @@ try {
   });
   if (!token) {
     return (
-      <main className="login-page premium-login-page">
-        <section className="login-hero-card">
-          <div className="login-brand-panel">
-            <div className="login-brand-badge">MS</div>
-
-            <p className="login-eyebrow">Merchant Control Center</p>
-            <h1>Run your storefront like a real business.</h1>
-            <p>
-              Manage products, orders, payments, subscription limits, and store branding from one clean dashboard.
-            </p>
-
-            <div className="login-feature-list">
-              <span>Fast order tracking</span>
-              <span>Plan-based selling limits</span>
-              <span>Premium storefront tools</span>
-            </div>
-          </div>
-
-          <form className="login-card premium-login-card" onSubmit={login}>
-            <div className="login-card-head">
-              <h2>Sign in to StorePlug</h2>
-              <p>Manage your storefront, orders, products, and payments from one workspace.</p>
-            </div>
-
-            <label>
-              Email address
-              <input
-                type="email"
-                name="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="merchant@example.com"
-                autoComplete="email"
-                required
-              />
-            </label>
-
-            <label>
-              Password
-              <div className="password-input-wrap">
-                <input
-                  type={showLoginPassword ? "text" : "password"}
-                  name="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                  required
-                />
-
-                <button
-                  type="button"
-                  className="password-toggle-btn"
-                  onClick={() => setShowLoginPassword((prev) => !prev)}
-                  aria-label={showLoginPassword ? "Hide password" : "Show password"}
-                >
-                  {showLoginPassword ? "Hide" : "Show"}
-                </button>
-              </div>
-            </label>
-
-            {error && (
-              <div className="login-error-card" role="alert">
-                <strong>Sign in failed</strong>
-                <span>{error}</span>
-              </div>
-            )}
-
-            <button className="premium-login-btn" type="submit" disabled={loginLoading}>
-              {loginLoading ? "Signing in..." : "Login to dashboard"}
-            </button>
-
-            <p className="login-security-note">
-              Protected merchant access for your StorePlug dashboard.
-            </p>
-          </form>
-        </section>
-      </main>
+      <LoginPage
+        email={email}
+        setEmail={setEmail}
+        password={password}
+        setPassword={setPassword}
+        showLoginPassword={showLoginPassword}
+        setShowLoginPassword={setShowLoginPassword}
+        error={error}
+        loginLoading={loginLoading}
+        login={login}
+      />
     );
   }
 
   return (
-    <main className={isSidebarOpen ? "dashboard sidebar-open" : "dashboard"}>
-            <div className="mobile-shell-bar">
-        <button
-          type="button"
-          className="mobile-menu-button"
-          onClick={() => setIsSidebarOpen(true)}
-          aria-label="Open dashboard menu"
-        >
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
-
-        <div className="mobile-shell-title">
-          <strong>StorePlug</strong>
-          <span>{selectedStore?.name || "Merchant dashboard"}</span>
-        </div>
-      </div>
-
-      {isSidebarOpen && (
-        <button
-          type="button"
-          className="sidebar-backdrop"
-          onClick={() => setIsSidebarOpen(false)}
-          aria-label="Close dashboard menu"
+    <DashboardShell
+      isSidebarOpen={isSidebarOpen}
+      selectedStoreName={selectedStore?.name || "Merchant dashboard"}
+      onOpenSidebar={() => setIsSidebarOpen(true)}
+      sidebar={
+        <Sidebar
+          isSidebarOpen={isSidebarOpen}
+          selectedStore={selectedStore}
+          stores={stores}
+          activeTab={activeTab}
+          isPlatformAdmin={isPlatformAdmin}
+          publicStoreUrl={PUBLIC_STORE_URL}
+          onClose={() => setIsSidebarOpen(false)}
+          onSelectStore={(storeId) => {
+            const store = stores.find((item) => item.id === storeId);
+            setSelectedStore(store || null);
+          }}
+          onOpenTab={(tab) => {
+            setActiveTab(tab);
+            setIsSidebarOpen(false);
+          }}
+          onLoadAdminSubscriptionSummary={loadAdminSubscriptionSummary}
+          onLoadAdminStores={loadAdminStores}
+          onLoadAdminSubscriptionPayments={loadAdminSubscriptionPayments}
+          onLoadSubscriptionPlans={loadSubscriptionPlans}
+          onLogout={logout}
         />
-      )}
-
-      <aside className={isSidebarOpen ? "sidebar open" : "sidebar"}>
-        <div className="sidebar-brand">
-          <div className="brand-mark">SP</div>
-
-          <div className="brand-copy">
-            <h2>StorePlug</h2>
-            <p className="muted">Merchant dashboard</p>
-          </div>
-
-          <button
-            type="button"
-            className="sidebar-close"
-            onClick={() => setIsSidebarOpen(false)}
-            aria-label="Close dashboard menu"
-          >
-            <span></span>
-            <span></span>
-          </button>
-        </div>
-
-        <div className="store-switcher">
-          <label>Current store</label>
-          <select
-            value={selectedStore?.id || ""}
-            onChange={(e) => {
-              const store = stores.find((item) => item.id === e.target.value);
-              setSelectedStore(store || null);
-            }}
-          >
-            {stores.map((store) => (
-              <option key={store.id} value={store.id}>
-                {store.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <nav className="sidebar-nav">
-          <div className="nav-group">
-            <p className="nav-group-title">Store</p>
-
-            <button
-              className={activeTab === "orders" ? "nav-btn active" : "nav-btn"}
-              onClick={() => {
-                setActiveTab("orders");
-                setIsSidebarOpen(false);
-              }}
-            >
-              Orders
-            </button>
-
-            <button
-              className={activeTab === "products" ? "nav-btn active" : "nav-btn"}
-              onClick={() => {
-                setActiveTab("products");
-                setIsSidebarOpen(false);
-              }}
-            >
-              Products
-            </button>
-
-            <button
-              className={activeTab === "settings" ? "nav-btn active" : "nav-btn"}
-              onClick={() => {
-                setActiveTab("settings");
-                setIsSidebarOpen(false);
-              }}
-            >
-              Store profile
-            </button>
-          </div>
-
-          {isPlatformAdmin && (
-            <div className="nav-group">
-              <p className="nav-group-title">Admin</p>
-
-              <button
-                className={activeTab === "adminSummary" ? "nav-btn active" : "nav-btn"}
-                onClick={() => {
-                  setActiveTab("adminSummary");
-                  setIsSidebarOpen(false);
-                  loadAdminSubscriptionSummary();
-                }}
-              >
-                Business overview
-              </button>
-
-              <button
-                className={activeTab === "adminSellers" ? "nav-btn active" : "nav-btn"}
-                onClick={() => {
-                  setActiveTab("adminSellers");
-                  setIsSidebarOpen(false);
-                  loadAdminStores();
-                  loadAdminSubscriptionPayments();
-                }}
-              >
-                Sellers
-              </button>
-
-              <button
-                className={activeTab === "adminPlans" ? "nav-btn active" : "nav-btn"}
-                onClick={() => {
-                  setActiveTab("adminPlans");
-                  setIsSidebarOpen(false);
-                  loadSubscriptionPlans();
-                }}
-              >
-                Plans
-              </button>
-              <button
-                className={activeTab === "adminPayments" ? "nav-btn active" : "nav-btn"}
-                onClick={() => {
-                  setActiveTab("adminPayments");
-                  setIsSidebarOpen(false);
-                  loadAdminSubscriptionPayments();
-                }}
-              >
-                Payments
-              </button>
-            </div>
-          )}
-
-          <div className="nav-group nav-footer">
-            <a
-              className="public-link"
-              href={PUBLIC_STORE_URL + "/" + (selectedStore?.slug || "")}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open public store
-            </a>
-
-            <button className="logout-btn" onClick={logout}>
-              Logout
-            </button>
-          </div>
-        </nav>
-      </aside>
-
-      <section className="content">
+      }
+    >
         <div className={`topbar topbar-${activeTab}`}>
           <div>
             <h1>
@@ -2262,372 +2066,78 @@ try {
         )}
 
         {activeTab === "orders" && (
-          <div className="cards">
-            {orders.length === 0 && <p>No orders yet.</p>}
-
-            {orders.map((order) => (
-              <article className="order-card" key={order.id}>
-                <div className="card-head">
-                  <div>
-                    <h3>{order.order_number}</h3>
-                    <p>
-                      {order.customer_name} {" - "} {order.customer_phone}
-                    </p>
-                  </div>
-
-                  <div className="order-status-stack">
-                    <span className={`status ${order.status}`}>
-                      {order.status}
-                    </span>
-
-                    {order.payment_method && (
-                      <span className={`payment-method-badge ${order.payment_method}`}>
-                        {order.payment_method === "paystack" ? "Paystack" : "Manual"}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="order-items">
-                  {order.items.map((item) => (
-                    <div key={item.id} className="item-row">
-                      <span>
-                        {item.product_name} {" x "} {item.quantity}
-                      </span>
-                      <strong>
-                        {order.currency} {Number(item.line_total).toFixed(2)}
-                      </strong>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="item-row total">
-                  <span>Total</span>
-                  <strong>
-                    {order.currency} {Number(order.total).toFixed(2)}
-                  </strong>
-                </div>
-
-                <p className="muted">
-                  Inventory deducted: {order.inventory_deducted ? "Yes" : "No"}
-                </p>
-
-                <div className="actions">
-                  {getAllowedOrderStatusActions(order.status).map((nextStatus) => (
-                    <button
-                      key={nextStatus}
-                      onClick={() =>
-                        nextStatus === "paid"
-                          ? confirmManualPayment(order.id)
-                          : updateOrderStatus(order.id, nextStatus)
-                      }
-                    >
-                      {formatOrderStatusActionLabel(nextStatus)}
-                    </button>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
+          <OrdersPage
+            orders={orders}
+            getAllowedOrderStatusActions={(status) =>
+              getAllowedOrderStatusActions(status as any) as string[]
+            }
+            formatOrderStatusActionLabel={(status) =>
+              formatOrderStatusActionLabel(status as any)
+            }
+            confirmManualPayment={confirmManualPayment}
+            updateOrderStatus={(orderId, nextStatus) =>
+              updateOrderStatus(orderId, nextStatus as any)
+            }
+          />
         )}
 
         {activeTab === "products" && (
-          <div className="products-layout premium-products-page">
-            <div className="product-toolbar">
-              <div>
-                <span className="section-kicker">Inventory</span>
-                <h2>Products</h2>
-                <p>Manage listings, pricing, stock, and visibility.</p>
-              </div>
-
-              <button
-                type="button"
-                className="product-create-trigger"
-                onClick={() => {
-                  if (isProductFormOpen || editingProductId) {
-                    cancelProductEdit();
-                    return;
-                  }
-
-                  setIsProductFormOpen(true);
-                }}
-              >
-                {isProductFormOpen || editingProductId ? "Close form" : "Add product"}
-              </button>
-            </div>
-
-            {(isProductFormOpen || editingProductId) && (
-              <form className="product-form premium-product-form" onSubmit={saveProduct}>
-                <div className="form-section-title">
-                  <h2>{editingProductId ? "Edit product" : "Add product"}</h2>
-                  <p>{editingProductId ? "Update this listing." : "Create a new storefront listing."}</p>
-                </div>
-
-                {isProductLimitReachedForCreate() && (
-                  <div className="product-limit-warning">
-                    <strong>Product limit reached</strong>
-                    <p>{getProductLimitReachedMessage()}</p>
-                  </div>
-                )}
-
-                <label>
-                  Product name
-                  <input
-                    value={productForm.name}
-                    onChange={(e) => {
-                      const name = e.target.value;
-                      setProductForm((prev) => ({
-                        ...prev,
-                        name,
-                        slug: editingProductId ? prev.slug : makeSlug(name),
-                      }));
-                    }}
-                    placeholder="Nike Dunk Low"
-                    required
-                  />
-                </label>
-
-                <label>
-                  Slug
-                  <input
-                    value={productForm.slug}
-                    onChange={(e) =>
-                      setProductForm((prev) => ({
-                        ...prev,
-                        slug: makeSlug(e.target.value),
-                      }))
-                    }
-                    placeholder="nike-dunk-low"
-                    required
-                  />
-                </label>
-
-                <label>
-                  Description
-                  <textarea
-                    value={productForm.description}
-                    onChange={(e) =>
-                      setProductForm((prev) => ({
-                        ...prev,
-                        description: e.target.value,
-                      }))
-                    }
-                    placeholder="Short product description"
-                  />
-                </label>
-
-                <label className={"upload-dropzone " + (subscriptionUsage?.can_upload_images === false ? "disabled" : "")}>
-                  <input
-                    className="upload-file-input"
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    disabled={uploadingProductImage || loadingSubscriptionUsage || subscriptionUsage?.can_upload_images === false}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-
-                      if (file) {
-                        uploadProductImage(file);
-                      }
-                    }}
-                  />
-
-                  <span className="upload-icon">+</span>
-                  <span>
-                    <strong>{uploadingProductImage ? "Uploading image..." : "Upload product image"}</strong>
-                    <small>JPEG, PNG, or WEBP</small>
-                  </span>
-                </label>
-
-                {subscriptionUsage?.can_upload_images === false && (
-                  <p className="plan-restriction-note">
-                    Image uploads are disabled on your current plan. Upgrade to enable product images.
-                  </p>
-                )}
-
-                {productForm.image_url && (
-                  <div className="uploaded-image-preview">
-                    <img src={productForm.image_url} alt="Product preview" />
-                    <p>Image uploaded successfully</p>
-                  </div>
-                )}
-
-                <div className="two-cols">
-                  <label>
-                    Price
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={productForm.price}
-                      onChange={(e) =>
-                        setProductForm((prev) => ({
-                          ...prev,
-                          price: e.target.value,
-                        }))
-                      }
-                      placeholder="850"
-                      required
-                    />
-                  </label>
-
-                  <label>
-                    Stock
-                    <input
-                      type="number"
-                      min="0"
-                      value={productForm.stock_quantity}
-                      onChange={(e) =>
-                        setProductForm((prev) => ({
-                          ...prev,
-                          stock_quantity: e.target.value,
-                        }))
-                      }
-                      placeholder="10"
-                    />
-                  </label>
-                </div>
-
-                <div className="checks premium-switches">
-                  <label className="premium-switch-row">
-                    <input
-                      type="checkbox"
-                      checked={productForm.is_active}
-                      onChange={(e) =>
-                        setProductForm((prev) => ({
-                          ...prev,
-                          is_active: e.target.checked,
-                        }))
-                      }
-                    />
-                    <span className={"premium-switch " + (productForm.is_active ? "on" : "")}>
-                      <span></span>
-                    </span>
-                    <span>
-                      <strong>Active</strong>
-                      <small>Show on public store</small>
-                    </span>
-                  </label>
-
-                  <label className="premium-switch-row">
-                    <input
-                      type="checkbox"
-                      checked={productForm.is_featured}
-                      onChange={(e) =>
-                        setProductForm((prev) => ({
-                          ...prev,
-                          is_featured: e.target.checked,
-                        }))
-                      }
-                    />
-                    <span className={"premium-switch " + (productForm.is_featured ? "on" : "")}>
-                      <span></span>
-                    </span>
-                    <span>
-                      <strong>Featured</strong>
-                      <small>Highlight product</small>
-                    </span>
-                  </label>
-                </div>
-
-                <div className="form-actions premium-form-actions">
-                  <button type="submit" disabled={isProductSubmitDisabled()}>
-                    {getProductSubmitLabel()}
-                  </button>
-
-                  {(editingProductId || isProductFormOpen) && (
-                    <button type="button" className="secondary-form-btn" onClick={cancelProductEdit}>
-                      Cancel
-                    </button>
-                  )}
-                </div>
-              </form>
-            )}
-
-            <div className="product-list premium-product-list">
-              {products.length === 0 && (
-                <div className="empty-product-state">
-                  <h3>No products yet</h3>
-                  <p>Add your first product to start selling from your storefront.</p>
-                </div>
-              )}
-
-              {products.map((product) => (
-                <article className="product-card premium-product-card" key={product.id}>
-                  <div className="product-card-top">
-                    <div className="product-thumb-box">
-                      {product.image_url ? (
-                        <img src={product.image_url} alt={product.name} />
-                      ) : (
-                        <span>{product.name.slice(0, 1).toUpperCase()}</span>
-                      )}
-                    </div>
-
-                    <div className="product-main-info">
-                      <div className="product-title-row">
-                        <div>
-                          <h3>{product.name}</h3>
-                          <p className="product-slug">/{product.slug}</p>
-                        </div>
-
-                        <div className="product-card-status">
-                          <span className={"pill product-status-pill " + (product.is_active ? "active-pill" : "inactive-pill")}>
-                            {product.is_active ? "Active" : "Inactive"}
-                          </span>
-
-                          {product.is_featured && <span className="pill featured-pill">Featured</span>}
-                        </div>
-                      </div>
-
-                      {product.description && (
-                        <p className="product-desc">{product.description}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="product-card-stats">
-                    <div>
-                      <span>Price</span>
-                      <strong>GHS {Number(product.price).toFixed(2)}</strong>
-                    </div>
-
-                    <div>
-                      <span>Stock</span>
-                      <strong>{product.stock_quantity ?? "Unlimited"}</strong>
-                    </div>
-                  </div>
-
-                  <div className="product-card-actions">
-                    <button type="button" className="product-action-btn" onClick={() => startEditingProduct(product)}>
-                      Edit
-                    </button>
-
-                    <button type="button" className="product-action-btn" onClick={() => toggleProductActive(product)}>
-                      {product.is_active ? "Deactivate" : "Activate"}
-                    </button>
-
-                    <button type="button" className="product-action-btn danger" onClick={() => deleteProduct(product)}>
-                      Remove
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
+          <ProductsPage
+            products={products}
+            productForm={productForm}
+            setProductForm={setProductForm}
+            subscriptionUsage={subscriptionUsage}
+            loadingSubscriptionUsage={loadingSubscriptionUsage}
+            uploadingProductImage={uploadingProductImage}
+            editingProductId={editingProductId}
+            isProductFormOpen={isProductFormOpen}
+            setIsProductFormOpen={setIsProductFormOpen}
+            saveProduct={saveProduct}
+            makeSlug={makeSlug}
+            uploadProductImage={uploadProductImage}
+            isProductLimitReachedForCreate={isProductLimitReachedForCreate}
+            getProductLimitReachedMessage={getProductLimitReachedMessage}
+            isProductSubmitDisabled={isProductSubmitDisabled}
+            getProductSubmitLabel={getProductSubmitLabel}
+            cancelProductEdit={cancelProductEdit}
+            startEditingProduct={startEditingProduct}
+            toggleProductActive={toggleProductActive}
+            deleteProduct={deleteProduct}
+          />
         )}
 
-        {(activeTab === "settings" || activeTab === "adminSummary" || activeTab === "adminSellers" || activeTab === "adminPlans" || activeTab === "adminPayments") && (
-          <div className={activeTab === "settings" ? "settings-layout store-profile-page" : `settings-layout admin-layout admin-page-${activeTab}`}>
+        {activeTab === "settings" && (
+          <StoreProfilePage
+            selectedStore={selectedStore}
+            storeForm={storeForm}
+            setStoreForm={setStoreForm}
+            subscriptionUsage={subscriptionUsage}
+            loadingSubscriptionUsage={loadingSubscriptionUsage}
+            saveStoreSettings={saveStoreSettings}
+            makeSlug={makeSlug}
+            uploadStoreImage={uploadStoreImage}
+            formatPlanName={formatPlanName}
+            getComputedSubscriptionStatus={getComputedSubscriptionStatus}
+            formatMonthlyFee={formatMonthlyFee}
+            formatSubscriptionDate={formatSubscriptionDate}
+            formatProductUsageLabel={formatProductUsageLabel}
+            getProductUsageClass={getProductUsageClass}
+            getProductUsagePercent={getProductUsagePercent}
+            formatRemainingProducts={formatRemainingProducts}
+          />
+        )}
+
+        {isPlatformAdmin && (activeTab === "adminSummary" || activeTab === "adminSellers" || activeTab === "adminPlans" || activeTab === "adminPayments") && (
+          <div className={`settings-layout admin-layout admin-page-${activeTab}`}>
             <form className="settings-card" onSubmit={saveStoreSettings}>
               <h2>
-                {activeTab === "settings"
-                  ? "Store profile"
-                  : activeTab === "adminSummary"
-                    ? "Business overview"
-                    : activeTab === "adminSellers"
-                      ? "Seller management"
-                      : activeTab === "adminPlans"
-                        ? "Plan settings"
-                        : "Payments"}
+                {activeTab === "adminSummary"
+                  ? "Business overview"
+                  : activeTab === "adminSellers"
+                    ? "Seller management"
+                    : activeTab === "adminPlans"
+                      ? "Plan settings"
+                      : "Payments"}
               </h2>
 
               
@@ -2751,678 +2261,79 @@ try {
               )}
               {/* ADMIN SELECTED STORE EXTEND BUTTON */}
               {isPlatformAdmin && activeTab === "adminSellers" && (
-                <button
-                  type="button"
-                  className="extend-subscription-btn"
-                  onClick={extendSelectedStoreSubscription}
-                >
-                  Extend subscription 30 days
-                </button>
+                <AdminSellersPage
+                  adminStores={adminStores}
+                  filteredAdminStores={filteredAdminStores}
+                  adminStoreSearch={adminStoreSearch}
+                  setAdminStoreSearch={setAdminStoreSearch}
+                  adminStoreFilter={adminStoreFilter}
+                  setAdminStoreFilter={setAdminStoreFilter}
+                  adminPlanDrafts={adminPlanDrafts}
+                  setAdminPlanDrafts={setAdminPlanDrafts}
+                  subscriptionPlans={subscriptionPlans}
+                  loadingSubscriptionPlans={loadingSubscriptionPlans}
+                  loadAdminStores={loadAdminStores}
+                  loadingAdminStores={loadingAdminStores}
+                  exportAdminStoresCsv={exportAdminStoresCsv}
+                  formatPlanName={formatPlanName}
+                  formatMonthlyFee={formatMonthlyFee}
+                  formatSubscriptionDate={formatSubscriptionDate}
+                  getComputedSubscriptionStatus={getComputedSubscriptionStatus}
+                  getSubscriptionTimeClass={getSubscriptionTimeClass}
+                  getSubscriptionTimeLabel={getSubscriptionTimeLabel}
+                  extendSelectedStoreSubscription={extendSelectedStoreSubscription}
+                  extendAdminStoreSubscription={extendAdminStoreSubscription}
+                  adminChangeStorePlan={adminChangeStorePlan}
+                  adminSetStoreSuspension={adminSetStoreSuspension}
+                />
               )}
 
 
 
               {/* ADMIN PLAN SETTINGS PANEL */}
               {isPlatformAdmin && activeTab === "adminPlans" && (
-                <div className="admin-plans-panel">
-                  <div className="admin-stores-header">
-                    <div>
-                      <h3>Subscription plan settings</h3>
-                      <p>Control product limits, prices, and features for each seller plan.</p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={loadSubscriptionPlans}
-                      disabled={loadingSubscriptionPlans}
-                    >
-                      {loadingSubscriptionPlans ? "Loading..." : "Refresh plans"}
-                    </button>
-                  </div>
-
-                  {subscriptionPlans.length === 0 ? (
-                    <p className="muted">Click Refresh plans to load subscription plans.</p>
-                  ) : (
-                    <div className="plan-settings-grid">
-                      {subscriptionPlans.map((plan) => {
-                        const draft = planDrafts[plan.name];
-
-                        if (!draft) {
-                          return null;
-                        }
-
-                        return (
-                          <div className="plan-settings-card" key={plan.id}>
-                            <div className="plan-settings-title">
-                              <div>
-                                <span>{plan.name}</span>
-                                <h4>{draft.display_name}</h4>
-                              </div>
-
-                              <strong>{draft.product_limit ? `${draft.product_limit} products` : "Unlimited"}</strong>
-                            </div>
-
-                            <label>
-                              Display name
-                              <input
-                                value={draft.display_name}
-                                onChange={(e) =>
-                                  updatePlanDraft(plan.name, "display_name", e.target.value)
-                                }
-                              />
-                            </label>
-
-                            <label>
-                              Monthly fee
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={draft.monthly_fee}
-                                onChange={(e) =>
-                                  updatePlanDraft(plan.name, "monthly_fee", e.target.value)
-                                }
-                              />
-                            </label>
-
-                            <label>
-                              Product limit
-                              <input
-                                type="number"
-                                min="0"
-                                step="1"
-                                value={draft.product_limit}
-                                placeholder="Blank means unlimited"
-                                onChange={(e) =>
-                                  updatePlanDraft(plan.name, "product_limit", e.target.value)
-                                }
-                              />
-                            </label>
-
-                            <div className="plan-checkboxes">
-                              <label>
-                                <input
-                                  type="checkbox"
-                                  checked={draft.can_upload_images}
-                                  onChange={(e) =>
-                                    updatePlanDraft(plan.name, "can_upload_images", e.target.checked)
-                                  }
-                                />
-                                Image uploads
-                              </label>
-
-                              <label>
-                                <input
-                                  type="checkbox"
-                                  checked={draft.can_use_custom_domain}
-                                  onChange={(e) =>
-                                    updatePlanDraft(plan.name, "can_use_custom_domain", e.target.checked)
-                                  }
-                                />
-                                Custom domain
-                              </label>
-
-                                                            <label>
-                                <input
-                                  type="checkbox"
-                                  checked={draft.can_receive_online_payments}
-                                  onChange={(e) =>
-                                    updatePlanDraft(
-                                      plan.name,
-                                      "can_receive_online_payments",
-                                      e.target.checked
-                                    )
-                                  }
-                                />
-                                Online payments
-                              </label>
-
-                              <label>
-                                <input
-                                  type="checkbox"
-                                  checked={draft.is_active}
-                                  onChange={(e) =>
-                                    updatePlanDraft(plan.name, "is_active", e.target.checked)
-                                  }
-                                />
-                                Plan active
-                              </label>
-                            </div>
-
-                            <button
-                              type="button"
-                              className="save-plan-btn"
-                              onClick={() => saveSubscriptionPlan(plan.name)}
-                            >
-                              Save plan
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                <AdminPlansPage
+                  subscriptionPlans={subscriptionPlans}
+                  planDrafts={planDrafts}
+                  loadingSubscriptionPlans={loadingSubscriptionPlans}
+                  loadSubscriptionPlans={loadSubscriptionPlans}
+                  updatePlanDraft={(planName, field, value) =>
+                    updatePlanDraft(planName, field as any, value as any)
+                  }
+                  saveSubscriptionPlan={saveSubscriptionPlan}
+                />
               )}
               {/* ADMIN SUBSCRIPTION SUMMARY PANEL */}
               {isPlatformAdmin && activeTab === "adminSummary" && (
-                <div className="admin-summary-panel">
-                  <div className="admin-stores-header">
-                    <div>
-                      <h3>Subscription business summary</h3>
-                      <p>Quick overview of seller subscriptions and revenue.</p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={loadAdminSubscriptionSummary}
-                      disabled={loadingAdminSubscriptionSummary}
-                    >
-                      {loadingAdminSubscriptionSummary ? "Loading..." : "Refresh summary"}
-                    </button>
-                  </div>
-
-                  {!adminSubscriptionSummary ? (
-                    <p className="muted">Click Refresh summary to load business numbers.</p>
-                  ) : (
-                    <div className="admin-summary-grid">
-                      <div className="admin-summary-card">
-                        <span>Total sellers</span>
-                        <strong>{adminSubscriptionSummary.total_stores}</strong>
-                      </div>
-
-                      <div className="admin-summary-card good">
-                        <span>Active</span>
-                        <strong>{adminSubscriptionSummary.active_stores}</strong>
-                      </div>
-
-                      <div className="admin-summary-card">
-                        <span>Trial</span>
-                        <strong>{adminSubscriptionSummary.trial_stores}</strong>
-                      </div>
-
-                      <div className="admin-summary-card danger">
-                        <span>Expired</span>
-                        <strong>{adminSubscriptionSummary.expired_stores}</strong>
-                      </div>
-
-                      <div className="admin-summary-card danger">
-                        <span>Suspended</span>
-                        <strong>{adminSubscriptionSummary.suspended_stores}</strong>
-                      </div>
-
-                      <div className="admin-summary-card warning">
-                        <span>Expiring in 7 days</span>
-                        <strong>{adminSubscriptionSummary.expiring_within_7_days}</strong>
-                      </div>
-
-                      <div className="admin-summary-card money">
-                        <span>Monthly recurring</span>
-                        <strong>{formatMonthlyFee(adminSubscriptionSummary.monthly_recurring_total)}</strong>
-                      </div>
-
-                      <div className="admin-summary-card money">
-                        <span>Revenue this month</span>
-                        <strong>{formatMonthlyFee(adminSubscriptionSummary.subscription_revenue_this_month)}</strong>
-                      </div>
-
-                      <div className="admin-summary-card money">
-                        <span>Total subscription revenue</span>
-                        <strong>{formatMonthlyFee(adminSubscriptionSummary.subscription_revenue_total)}</strong>
-                      </div>
-
-                      <div className="admin-summary-card">
-                        <span>Payment records</span>
-                        <strong>{adminSubscriptionSummary.recent_payment_count}</strong>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <AdminSummaryPage
+                  adminSubscriptionSummary={adminSubscriptionSummary}
+                  loadingAdminSubscriptionSummary={loadingAdminSubscriptionSummary}
+                  loadAdminSubscriptionSummary={loadAdminSubscriptionSummary}
+                  formatMonthlyFee={formatMonthlyFee}
+                />
               )}
               {/* ADMIN ALL STORES PANEL */}
-              {isPlatformAdmin && activeTab === "adminSellers" && (
-                <div className="admin-stores-panel">
-                  <div className="admin-stores-header">
-                    <div>
-                      <h3>Admin seller stores</h3>
-                      <p>Extend subscriptions for sellers who have paid you.</p>
-                    </div>
-
-                    <div className="admin-header-actions">
-                      <button
-                        type="button"
-                        onClick={loadAdminStores}
-                        disabled={loadingAdminStores}
-                      >
-                        {loadingAdminStores ? "Loading..." : "Refresh sellers"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={exportAdminStoresCsv}
-                      >
-                        Export sellers CSV
-                      </button>
-                    </div>
-                  </div>
-
-                  {adminStores.length === 0 ? (
-                    <p className="muted">Click Refresh sellers to load all stores.</p>
-                  ) : (
-                    <>
-                      <div className="admin-store-search">
-                        <input
-                          value={adminStoreSearch}
-                          onChange={(e) => setAdminStoreSearch(e.target.value)}
-                          placeholder="Search sellers by store, slug, owner, or email..."
-                        />
-
-                        {adminStoreSearch && (
-                          <button
-                            type="button"
-                            onClick={() => setAdminStoreSearch("")}
-                          >
-                            Clear
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="admin-store-filters">
-                        {(["all", "active", "trial", "expired", "suspended", "expiring"] as const).map((filter) => (
-                          <button
-                            key={filter}
-                            type="button"
-                            className={adminStoreFilter === filter ? "active" : ""}
-                            onClick={() => setAdminStoreFilter(filter)}
-                          >
-                            {filter === "expiring" ? "Expiring soon" : formatPlanName(filter)}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="admin-store-list">
-                        {filteredAdminStores.map((store) => (
-                        <div className="admin-store-card" key={store.id}>
-                          <div>
-                            <h4>{store.name}</h4>
-                            <p>/{store.slug}</p>
-                            <p>{store.owner_name} — {store.owner_email}</p>
-                          </div>
-
-                          <div>
-                            <span>Plan</span>
-                            <strong>{formatPlanName(store.plan_name)}</strong>
-                          </div>
-
-                          <div>
-                            <span>Status</span>
-                            <strong
-                              className={`subscription-status ${getComputedSubscriptionStatus(
-                                store.subscription_status,
-                                store.subscription_ends_at,
-                                store.is_suspended
-                              )}`}
-                            >
-                              {formatPlanName(
-                                getComputedSubscriptionStatus(
-                                  store.subscription_status,
-                                  store.subscription_ends_at,
-                                  store.is_suspended
-                                )
-                              )}
-                            </strong>
-                          </div>
-
-                          <div>
-                            <span>Monthly fee</span>
-                            <strong>{formatMonthlyFee(store.monthly_fee)}</strong>
-                          </div>
-
-                          <div className="admin-plan-change">
-                            <label>
-                              <span>Change plan</span>
-                              <select
-                                value={adminPlanDrafts[store.id] || store.plan_name || "starter"}
-                                onChange={(e) =>
-                                  setAdminPlanDrafts((prev) => ({
-                                    ...prev,
-                                    [store.id]: e.target.value,
-                                  }))
-                                }
-                                disabled={loadingSubscriptionPlans || subscriptionPlans.length === 0}
-                              >
-                                {subscriptionPlans.length === 0 ? (
-                                  <option value={store.plan_name || "starter"}>
-                                    {formatPlanName(store.plan_name)}
-                                  </option>
-                                ) : (
-                                  subscriptionPlans.map((plan) => (
-                                    <option key={plan.id} value={plan.name}>
-                                      {plan.display_name} — {formatMonthlyFee(plan.monthly_fee)}
-                                    </option>
-                                  ))
-                                )}
-                              </select>
-                            </label>
-
-                            <button
-                              type="button"
-                              className="save-store-plan-btn"
-                              onClick={() => adminChangeStorePlan(store)}
-                              disabled={
-                                loadingSubscriptionPlans ||
-                                subscriptionPlans.length === 0 ||
-                                (adminPlanDrafts[store.id] || store.plan_name) === store.plan_name
-                              }
-                            >
-                              Save plan
-                            </button>
-                          </div>
-
-                          <div>
-                            <span>Expires</span>
-                            <strong>{formatSubscriptionDate(store.subscription_ends_at)}</strong>
-                          </div>
-
-                          <div>
-                            <span>Time left</span>
-                            <strong
-                              className={`subscription-time ${getSubscriptionTimeClass(
-                                store.subscription_status,
-                                store.subscription_ends_at,
-                                store.is_suspended
-                              )}`}
-                            >
-                              {getSubscriptionTimeLabel(
-                                store.subscription_status,
-                                store.subscription_ends_at,
-                                store.is_suspended
-                              )}
-                            </strong>
-                          </div>
-
-                          <div className="admin-store-actions">
-                            <button
-                              type="button"
-                              className="extend-subscription-btn"
-                              onClick={() => extendAdminStoreSubscription(store.id)}
-                            >
-                              Extend 30 days
-                            </button>
-
-                            {store.is_suspended || store.subscription_status === "suspended" ? (
-                              <button
-                                type="button"
-                                className="reactivate-store-btn"
-                                onClick={() => adminSetStoreSuspension(store, false)}
-                              >
-                                Reactivate
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                className="suspend-store-btn"
-                                onClick={() => adminSetStoreSuspension(store, true)}
-                              >
-                                Suspend
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  
-                      {filteredAdminStores.length === 0 && (
-                        <p className="muted">No sellers match this filter.</p>
-                      )}
-                    </>)}
-                </div>
-              )}{/* ADMIN SUBSCRIPTION PAYMENTS PANEL */}
+              {/* ADMIN SUBSCRIPTION PAYMENTS PANEL */}
               {isPlatformAdmin && activeTab === "adminPayments" && (
-                <div className="admin-stores-panel">
-                  <div className="admin-stores-header">
-                    <div>
-                      <h3>Subscription payment history</h3>
-                      <p>Recent seller subscription payments recorded by admins.</p>
-                    </div>
-
-                    <div className="admin-header-actions">
-                      <button
-                        type="button"
-                        onClick={loadAdminSubscriptionPayments}
-                        disabled={loadingAdminSubscriptionPayments}
-                      >
-                        {loadingAdminSubscriptionPayments ? "Loading..." : "Refresh payments"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={exportSubscriptionPaymentsCsv}
-                      >
-                        Export CSV
-                      </button>
-                    </div>
-                  </div>
-
-                  {adminSubscriptionPayments.length === 0 ? (
-                    <p className="muted">Click Refresh payments to load recent payments.</p>
-                  ) : (
-                    <>
-                      <div className="admin-store-search">
-                        <input
-                          value={subscriptionPaymentSearch}
-                          onChange={(e) => setSubscriptionPaymentSearch(e.target.value)}
-                          placeholder="Search payments by store, reference, method, admin, or note..."
-                        />
-
-                        {subscriptionPaymentSearch && (
-                          <button
-                            type="button"
-                            onClick={() => setSubscriptionPaymentSearch("")}
-                          >
-                            Clear
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="subscription-payment-filters">
-                        {(["all", "manual", "momo", "bank", "cash", "paystack"] as const).map((method) => (
-                          <button
-                            key={method}
-                            type="button"
-                            className={subscriptionPaymentMethodFilter === method ? "active" : ""}
-                            onClick={() => setSubscriptionPaymentMethodFilter(method)}
-                          >
-                            {formatPlanName(method)}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="admin-store-list">
-                        {filteredSubscriptionPayments.map((payment) => (
-                        <div className="admin-store-card" key={payment.id}>
-                          <div>
-                            <h4>{payment.store_name}</h4>
-                            <p>/{payment.store_slug}</p>
-                            <p>Approved by: {payment.approved_by_email || "Unknown admin"}</p>
-                          </div>
-
-                          <div>
-                            <span>Plan</span>
-                            <strong>{formatPlanName(payment.plan_name)}</strong>
-                          </div>
-
-                          <div>
-                            <span>Amount</span>
-                            <strong>
-                              {payment.currency} {Number(payment.amount).toFixed(2)}
-                            </strong>
-                          </div>
-
-                          <div>
-                            <span>Method</span>
-                            <strong>{formatPlanName(payment.payment_method)}</strong>
-                          </div>
-
-                          <div>
-                            <span>Reference</span>
-                            <strong>{payment.payment_reference || "N/A"}</strong>
-                          </div>
-
-                          <div>
-                            <span>Covered</span>
-                            <strong>{payment.covered_days} days</strong>
-                          </div>
-
-                          <div>
-                            <span>Paid</span>
-                            <strong>{formatSubscriptionDate(payment.paid_at)}</strong>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  
-                      {filteredSubscriptionPayments.length === 0 && (
-                        <p className="muted">No payments match this filter.</p>
-                      )}
-                    </>)}
-                </div>
-              )}<label>
-                Store name
-                <input
-                  value={storeForm.name}
-                  onChange={(e) =>
-                    setStoreForm((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                  placeholder="THE GAME Store"
-                  required
+                <AdminPaymentsPage
+                  adminSubscriptionPayments={adminSubscriptionPayments}
+                  filteredSubscriptionPayments={filteredSubscriptionPayments}
+                  subscriptionPaymentSearch={subscriptionPaymentSearch}
+                  setSubscriptionPaymentSearch={setSubscriptionPaymentSearch}
+                  subscriptionPaymentMethodFilter={subscriptionPaymentMethodFilter}
+                  setSubscriptionPaymentMethodFilter={setSubscriptionPaymentMethodFilter}
+                  loadAdminSubscriptionPayments={loadAdminSubscriptionPayments}
+                  loadingAdminSubscriptionPayments={loadingAdminSubscriptionPayments}
+                  exportSubscriptionPaymentsCsv={exportSubscriptionPaymentsCsv}
+                  formatPlanName={formatPlanName}
+                  formatSubscriptionDate={formatSubscriptionDate}
                 />
-              </label>
-
-              <label>
-                Store slug
-                <input
-                  value={storeForm.slug}
-                  onChange={(e) =>
-                    setStoreForm((prev) => ({
-                      ...prev,
-                      slug: makeSlug(e.target.value),
-                    }))
-                  }
-                  placeholder="thegame"
-                  required
-                />
-              </label>
-
-              <label>
-                Bio
-                <textarea
-                  value={storeForm.bio}
-                  onChange={(e) =>
-                    setStoreForm((prev) => ({ ...prev, bio: e.target.value }))
-                  }
-                  placeholder="Tell customers what your store sells."
-                />
-              </label>
-
-              <label>
-                WhatsApp number
-                <input
-                  value={storeForm.whatsapp_number}
-                  onChange={(e) =>
-                    setStoreForm((prev) => ({
-                      ...prev,
-                      whatsapp_number: e.target.value,
-                    }))
-                  }
-                  placeholder="233544193559"
-                />
-              </label>              {subscriptionUsage?.can_upload_images === false && (
-                <p className="plan-restriction-note">
-                  Logo and banner uploads are disabled on your current plan. Upgrade to enable store branding images.
-                </p>
               )}
 
-
-                            <label>
-                Store logo
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  disabled={loadingSubscriptionUsage || subscriptionUsage?.can_upload_images === false}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-
-                    if (file) {
-                      uploadStoreImage(file, "logo");
-                    }
-                  }}
-                />
-              </label>
-
-              {storeForm.logo_url && (
-                <div className="uploaded-image-preview">
-                  <img src={storeForm.logo_url} alt="Store logo preview" />
-                  <p>Logo uploaded successfully</p>
-                </div>
-              )}
-
-                            <label>
-                Store banner
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  disabled={loadingSubscriptionUsage || subscriptionUsage?.can_upload_images === false}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-
-                    if (file) {
-                      uploadStoreImage(file, "banner");
-                    }
-                  }}
-                />
-              </label>
-
-              {storeForm.banner_url && (
-                <div className="uploaded-image-preview">
-                  <img src={storeForm.banner_url} alt="Store banner preview" />
-                  <p>Banner uploaded successfully</p>
-                </div>
-              )}
-
-              <label>
-                Category
-                <input
-                  value={storeForm.category}
-                  onChange={(e) =>
-                    setStoreForm((prev) => ({ ...prev, category: e.target.value }))
-                  }
-                  placeholder="Fashion"
-                />
-              </label>
-
-              <button type="submit">Save store settings</button>
             </form>
 
-            <aside className="settings-preview">
-              <h2>Preview</h2>
-
-              {storeForm.banner_url && (
-                <img className="banner-preview" src={storeForm.banner_url} alt="Store banner" />
-              )}
-
-              {storeForm.logo_url && (
-                <img className="logo-preview" src={storeForm.logo_url} alt="Store logo" />
-              )}
-
-              <h3>{storeForm.name || "Store name"}</h3>
-              <p className="muted">/{storeForm.slug || "store-slug"}</p>
-              <p>{storeForm.bio || "Store bio will appear here."}</p>
-              <p>WhatsApp: {storeForm.whatsapp_number || "Not added"}</p>
-              <p>Category: {storeForm.category || "Not added"}</p>
-            </aside>
           </div>
         )}
-      </section>
-    </main>
+    </DashboardShell>
   );
 }
