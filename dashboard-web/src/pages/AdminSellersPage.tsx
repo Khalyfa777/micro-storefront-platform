@@ -174,8 +174,226 @@ type StoredSellerDraft = {
 };
 
 
+type CreatedSellerConfirmation = Omit<
+  AdminSellerCreateResponse,
+  "invitation_url"
+> & {
+  invitation_url: string | null;
+};
+
+
+type StoredCreatedSellerConfirmation = Omit<
+  AdminSellerCreateResponse,
+  "invitation_url"
+> & {
+  stored_at: number;
+};
+
+
 const sellerDraftStorageKey =
   "storeplug.admin-seller-create-draft.v1";
+
+
+const createdSellerStorageKey =
+  "storeplug.admin-seller-created-summary.v1";
+
+
+const createdSellerStorageTtlMs =
+  12 * 60 * 60 * 1000;
+
+
+function isStoredCreatedSeller(
+  value: unknown,
+): value is StoredCreatedSellerConfirmation {
+  if (
+    !value ||
+    typeof value !== "object"
+  ) {
+    return false;
+  }
+
+  const candidate = value as Partial<
+    StoredCreatedSellerConfirmation
+  >;
+
+  return (
+    typeof candidate.seller_id ===
+      "string" &&
+    typeof candidate.store_id ===
+      "string" &&
+    typeof candidate.invitation_id ===
+      "string" &&
+    typeof candidate.full_name ===
+      "string" &&
+    typeof candidate.email ===
+      "string" &&
+    (
+      candidate.phone_number === null ||
+      typeof candidate.phone_number ===
+        "string"
+    ) &&
+    typeof candidate.store_name ===
+      "string" &&
+    typeof candidate.store_slug ===
+      "string" &&
+    candidate.account_status ===
+      "invited" &&
+    candidate.publication_status ===
+      "draft" &&
+    typeof candidate.plan_name ===
+      "string" &&
+    candidate.subscription_status ===
+      "trial" &&
+    (
+      typeof candidate.monthly_fee ===
+        "string" ||
+      typeof candidate.monthly_fee ===
+        "number"
+    ) &&
+    typeof candidate.trial_ends_at ===
+      "string" &&
+    typeof candidate
+      .invitation_expires_at ===
+      "string" &&
+    typeof candidate.stored_at ===
+      "number"
+  );
+}
+
+
+function readStoredCreatedSeller(
+): CreatedSellerConfirmation | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw =
+      window.sessionStorage.getItem(
+        createdSellerStorageKey,
+      );
+
+    if (!raw) {
+      return null;
+    }
+
+    const parsed: unknown =
+      JSON.parse(raw);
+
+    if (!isStoredCreatedSeller(parsed)) {
+      window.sessionStorage.removeItem(
+        createdSellerStorageKey,
+      );
+
+      return null;
+    }
+
+    const age =
+      Date.now() - parsed.stored_at;
+
+    if (
+      age < 0 ||
+      age > createdSellerStorageTtlMs
+    ) {
+      window.sessionStorage.removeItem(
+        createdSellerStorageKey,
+      );
+
+      return null;
+    }
+
+    return {
+      seller_id: parsed.seller_id,
+      store_id: parsed.store_id,
+      invitation_id:
+        parsed.invitation_id,
+      full_name: parsed.full_name,
+      email: parsed.email,
+      phone_number:
+        parsed.phone_number,
+      store_name: parsed.store_name,
+      store_slug: parsed.store_slug,
+      account_status:
+        parsed.account_status,
+      publication_status:
+        parsed.publication_status,
+      plan_name: parsed.plan_name,
+      subscription_status:
+        parsed.subscription_status,
+      monthly_fee: parsed.monthly_fee,
+      trial_ends_at:
+        parsed.trial_ends_at,
+      invitation_expires_at:
+        parsed.invitation_expires_at,
+
+      // Never restore or persist the raw token.
+      invitation_url: null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+
+function writeStoredCreatedSeller(
+  seller: AdminSellerCreateResponse,
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const safeSummary:
+    StoredCreatedSellerConfirmation = {
+      seller_id: seller.seller_id,
+      store_id: seller.store_id,
+      invitation_id:
+        seller.invitation_id,
+      full_name: seller.full_name,
+      email: seller.email,
+      phone_number:
+        seller.phone_number,
+      store_name: seller.store_name,
+      store_slug: seller.store_slug,
+      account_status:
+        seller.account_status,
+      publication_status:
+        seller.publication_status,
+      plan_name: seller.plan_name,
+      subscription_status:
+        seller.subscription_status,
+      monthly_fee: seller.monthly_fee,
+      trial_ends_at:
+        seller.trial_ends_at,
+      invitation_expires_at:
+        seller.invitation_expires_at,
+      stored_at: Date.now(),
+    };
+
+  try {
+    window.sessionStorage.setItem(
+      createdSellerStorageKey,
+      JSON.stringify(safeSummary),
+    );
+  } catch {
+    // Storage may be unavailable in a
+    // restricted/private browser context.
+  }
+}
+
+
+function clearStoredCreatedSeller() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.removeItem(
+      createdSellerStorageKey,
+    );
+  } catch {
+    // Ignore unavailable browser storage.
+  }
+}
 
 
 function readStoredSellerDraft(
@@ -441,13 +659,31 @@ export function AdminSellersPage({
   onSellerCreated,
   subscriptionPlans,
 }: AdminSellersPageProps) {
+  const [initialStoredState] =
+    useState(() => ({
+      createdSeller:
+        readStoredCreatedSeller(),
+      sellerDraft:
+        readStoredSellerDraft(),
+    }));
+
   const [view, setView] = useState<
     "list" | "create" | "created" | "detail"
-  >(() =>
-    readStoredSellerDraft()
-      ? "create"
-      : "list"
-  );
+  >(() => {
+    if (
+      initialStoredState.createdSeller
+    ) {
+      return "created";
+    }
+
+    if (
+      initialStoredState.sellerDraft
+    ) {
+      return "create";
+    }
+
+    return "list";
+  });
 
   const [sellerFilter, setSellerFilter] =
     useState<SellerFilter>("all");
@@ -457,7 +693,8 @@ export function AdminSellersPage({
   const [createForm, setCreateForm] =
     useState<SellerCreateForm>(() => {
       return (
-        readStoredSellerDraft()?.form ??
+        initialStoredState
+          .sellerDraft?.form ??
         emptyCreateForm
       );
     });
@@ -465,8 +702,9 @@ export function AdminSellersPage({
   const [slugTouched, setSlugTouched] =
     useState(() => {
       return (
-        readStoredSellerDraft()
-          ?.slugTouched ?? false
+        initialStoredState
+          .sellerDraft?.slugTouched ??
+        false
       );
     });
 
@@ -478,8 +716,10 @@ export function AdminSellersPage({
 
   const [createdSeller, setCreatedSeller] =
     useState<
-      AdminSellerCreateResponse | null
-    >(null);
+      CreatedSellerConfirmation | null
+    >(
+      initialStoredState.createdSeller,
+    );
 
   const [copied, setCopied] = useState(false);
 
@@ -584,6 +824,7 @@ export function AdminSellersPage({
   function openSellerDetail(
     sellerId: string,
   ) {
+    clearStoredCreatedSeller();
     setSelectedSellerId(sellerId);
     setView("detail");
 
@@ -606,6 +847,7 @@ export function AdminSellersPage({
   }
 
   function openCreateView() {
+    clearStoredCreatedSeller();
     setCreateError("");
     setCopied(false);
     setCreatedSeller(null);
@@ -613,6 +855,7 @@ export function AdminSellersPage({
   }
 
   function returnToList() {
+    clearStoredCreatedSeller();
     clearStoredSellerDraft();
     setCreateForm(emptyCreateForm);
     setSlugTouched(false);
@@ -623,6 +866,7 @@ export function AdminSellersPage({
   }
 
   function resetCreateForm() {
+    clearStoredCreatedSeller();
     clearStoredSellerDraft();
     setCreateForm(emptyCreateForm);
     setSlugTouched(false);
@@ -712,6 +956,7 @@ export function AdminSellersPage({
       ) as AdminSellerCreateResponse;
 
       clearStoredSellerDraft();
+      writeStoredCreatedSeller(response);
       setCreatedSeller(response);
       setView("created");
 
@@ -730,13 +975,16 @@ export function AdminSellersPage({
   }
 
   async function copyCreatedInvitation() {
-    if (!createdSeller) {
+    const invitationUrl =
+      createdSeller?.invitation_url;
+
+    if (!invitationUrl) {
       return;
     }
 
     try {
       await copyInvitationLink(
-        createdSeller.invitation_url,
+        invitationUrl,
       );
 
       setCopied(true);
@@ -816,10 +1064,26 @@ export function AdminSellersPage({
           </h2>
 
           <p className="seller-created-intro">
-            The seller account and draft store
-            were created successfully. Copy the
-            private invitation link and send it
-            directly to the seller.
+            {createdSeller.invitation_url
+              ? (
+                <>
+                  The seller account and draft
+                  store were created
+                  successfully. Copy the private
+                  invitation link and send it
+                  directly to the seller.
+                </>
+              )
+              : (
+                <>
+                  The seller account and draft
+                  store were created
+                  successfully. This confirmation
+                  was securely restored without
+                  saving the private invitation
+                  token.
+                </>
+              )}
           </p>
 
           <div className="seller-created-summary">
@@ -869,43 +1133,98 @@ export function AdminSellersPage({
             </div>
           </div>
 
-          <div className="invitation-link-panel">
-            <label htmlFor="created-invitation-link">
-              Private invitation link
-            </label>
+          {createdSeller.invitation_url ? (
+            <div className="invitation-link-panel">
+              <label htmlFor="created-invitation-link">
+                Private invitation link
+              </label>
 
-            <div className="invitation-link-row">
-              <input
-                id="created-invitation-link"
-                value={
-                  createdSeller.invitation_url
-                }
-                readOnly
-                onFocus={(event) =>
-                  event.currentTarget.select()
-                }
-              />
+              <div className="invitation-link-row">
+                <input
+                  id="created-invitation-link"
+                  value={
+                    createdSeller.invitation_url
+                  }
+                  readOnly
+                  onFocus={(event) =>
+                    event.currentTarget.select()
+                  }
+                />
 
-              <button
-                type="button"
-                className="seller-primary-button"
-                onClick={
-                  copyCreatedInvitation
-                }
-              >
-                {copied
-                  ? "Copied"
-                  : "Copy invitation link"}
-              </button>
+                <button
+                  type="button"
+                  className="seller-primary-button"
+                  onClick={
+                    copyCreatedInvitation
+                  }
+                >
+                  {copied
+                    ? "Copied"
+                    : "Copy invitation link"}
+                </button>
+              </div>
+
+              <p>
+                This link contains a single-use
+                security token. It is not saved
+                in the dashboard after you leave
+                this screen.
+              </p>
             </div>
+          ) : (
+            <div
+              className="invitation-link-panel invitation-link-unavailable"
+              role="status"
+            >
+              <div
+                className="invitation-link-unavailable-icon"
+                aria-hidden="true"
+              >
+                <svg viewBox="0 0 24 24">
+                  <path
+                    d="M7 10V8a5 5 0 0 1 10 0v2"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                  <rect
+                    x="5"
+                    y="10"
+                    width="14"
+                    height="10"
+                    rx="2.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  />
+                </svg>
+              </div>
 
-            <p>
-              This link contains a single-use
-              security token. It is not saved in
-              the dashboard after you leave this
-              screen.
-            </p>
-          </div>
+              <div className="invitation-link-unavailable-copy">
+                <strong>
+                  Private invitation link is no
+                  longer displayed
+                </strong>
+
+                <p>
+                  StorePlug never saves the raw
+                  security token. A link you
+                  already copied remains valid
+                  until it is used, revoked, or
+                  expires.
+                </p>
+
+                <small>
+                  Generate a replacement from
+                  seller details only when
+                  necessary. A replacement
+                  revokes the previous active
+                  invitation.
+                </small>
+              </div>
+            </div>
+          )}
 
           {createError && (
             <div className="seller-inline-error">
@@ -920,6 +1239,18 @@ export function AdminSellersPage({
               onClick={returnToList}
             >
               Back to sellers
+            </button>
+
+            <button
+              type="button"
+              className="seller-secondary-button"
+              onClick={() =>
+                openSellerDetail(
+                  createdSeller.seller_id,
+                )
+              }
+            >
+              View seller
             </button>
 
             <button
