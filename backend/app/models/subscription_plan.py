@@ -27,6 +27,12 @@ class SubscriptionPlan(Base):
         nullable=False,
     )
 
+    is_quote_only: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
     # NULL means unlimited.
     product_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
 

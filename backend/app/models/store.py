@@ -20,6 +20,11 @@ class Store(Base):
     theme: Mapped[str] = mapped_column(String(50), default="default")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_suspended: Mapped[bool] = mapped_column(Boolean, default=False)
+    publication_status: Mapped[str] = mapped_column(
+        String(20),
+        default="draft",
+        nullable=False,
+    )
     plan_name: Mapped[str] = mapped_column(String(50), default="starter", nullable=False)
     subscription_status: Mapped[str] = mapped_column(String(30), default="trial", nullable=False)
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

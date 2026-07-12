@@ -44,6 +44,7 @@ class StoreResponse(BaseModel):
     theme: Any = None
     is_active: bool
     is_suspended: bool
+    publication_status: str = "draft"
     plan_name: str = "starter"
     subscription_status: str = "trial"
     trial_ends_at: datetime | None = None

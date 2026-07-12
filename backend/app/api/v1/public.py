@@ -53,6 +53,17 @@ async def public_store(slug: str, db: AsyncSession = Depends(get_db)):
     if not store:
         raise HTTPException(status_code=404, detail="Store not found")
 
+    publication_status = (
+        store.publication_status or "draft"
+    ).lower().strip()
+
+    if publication_status != "published":
+        # Draft stores must not disclose their existence publicly.
+        raise HTTPException(
+            status_code=404,
+            detail="Store not found",
+        )
+
     access_error = get_store_access_error(store)
 
     if access_error:

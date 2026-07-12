@@ -303,6 +303,7 @@ class AdminStoreListItem(BaseModel):
     last_payment_at: datetime | None = None
     is_active: bool
     is_suspended: bool
+    publication_status: str
 
 
 @router.get("/admin/stores", response_model=list[AdminStoreListItem])
@@ -349,6 +350,7 @@ async def admin_list_all_stores(
             last_payment_at=store.last_payment_at,
             is_active=store.is_active,
             is_suspended=store.is_suspended,
+            publication_status=store.publication_status,
         )
         for store, owner_email, owner_name in rows
     ]
@@ -559,6 +561,7 @@ class AdminSubscriptionPlanItem(BaseModel):
     name: str
     display_name: str
     monthly_fee: Decimal
+    is_quote_only: bool
     product_limit: int | None = None
     can_upload_images: bool
     can_use_custom_domain: bool
@@ -570,6 +573,8 @@ class AdminSubscriptionPlanItem(BaseModel):
 
 class AdminSubscriptionPlanUpdate(BaseModel):
     display_name: str | None = Field(default=None, max_length=100)
+    monthly_fee: Decimal | None = Field(default=None, ge=0)
+    is_quote_only: bool | None = None
     product_limit: int | None = Field(default=None, ge=0)
     can_upload_images: bool | None = None
     can_use_custom_domain: bool | None = None
@@ -583,6 +588,7 @@ def subscription_plan_to_item(plan: SubscriptionPlan) -> AdminSubscriptionPlanIt
         name=plan.name,
         display_name=plan.display_name,
         monthly_fee=plan.monthly_fee,
+        is_quote_only=plan.is_quote_only,
         product_limit=plan.product_limit,
         can_upload_images=plan.can_upload_images,
         can_use_custom_domain=plan.can_use_custom_domain,
@@ -631,6 +637,14 @@ async def admin_update_subscription_plan(
 
     update_data = payload.model_dump(exclude_unset=True)
 
+    next_is_quote_only = update_data.get(
+        "is_quote_only",
+        plan.is_quote_only,
+    )
+
+    if next_is_quote_only:
+        update_data["monthly_fee"] = Decimal("0.00")
+
     for key, value in update_data.items():
         setattr(plan, key, value)
 
@@ -643,6 +657,7 @@ class StoreSubscriptionUsageResponse(BaseModel):
     plan_name: str
     display_name: str
     monthly_fee: Decimal
+    is_quote_only: bool
     product_limit: int | None = None
     active_products: int
     remaining_products: int | None = None
@@ -682,6 +697,7 @@ async def get_store_subscription_usage(
         product_limit = plan.product_limit
         display_name = plan.display_name
         monthly_fee = plan.monthly_fee
+        is_quote_only = bool(plan.is_quote_only)
         can_upload_images = bool(plan.can_upload_images) if plan_is_active else False
         can_use_custom_domain = bool(plan.can_use_custom_domain) if plan_is_active else False
         can_receive_online_payments = bool(plan.can_receive_online_payments) if plan_is_active else False
@@ -719,6 +735,7 @@ async def get_store_subscription_usage(
         product_limit = fallback_limits.get(plan_name, 10)
         display_name = plan_name.title()
         monthly_fee = store.monthly_fee
+        is_quote_only = plan_name == "custom"
         plan_is_active = True
         feature_set = fallback_features.get(plan_name, fallback_features["starter"])
         can_upload_images = feature_set["can_upload_images"]
@@ -732,6 +749,7 @@ async def get_store_subscription_usage(
         plan_name=plan_name,
         display_name=display_name,
         monthly_fee=monthly_fee,
+        is_quote_only=is_quote_only,
         product_limit=product_limit,
         active_products=active_products,
         remaining_products=remaining_products,
