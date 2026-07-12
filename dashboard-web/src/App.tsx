@@ -505,6 +505,38 @@ function formatOrderStatusActionLabel(status: string): string {
 
   return labels[status] || status;
 }
+
+type DashboardTab =
+  | "orders"
+  | "products"
+  | "settings"
+  | "adminSummary"
+  | "adminSellers"
+  | "adminPlans"
+  | "adminPayments";
+
+const dashboardTabs: DashboardTab[] = [
+  "orders",
+  "products",
+  "settings",
+  "adminSummary",
+  "adminSellers",
+  "adminPlans",
+  "adminPayments",
+];
+
+function getInitialDashboardTab(): DashboardTab {
+  if (typeof window === "undefined") return "orders";
+
+  const hashTab = window.location.hash.replace("#", "") as DashboardTab;
+  if (dashboardTabs.includes(hashTab)) return hashTab;
+
+  const savedTab = window.localStorage.getItem("storeplug.activeTab") as DashboardTab | null;
+  if (savedTab && dashboardTabs.includes(savedTab)) return savedTab;
+
+  return "orders";
+}
+
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   
@@ -513,7 +545,7 @@ const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
-  const [loginDebug, setLoginDebug] = useState("");
+  const [, setLoginDebug] = useState("");
 
   const [stores, setStores] = useState<Store[]>([]);
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
@@ -529,8 +561,19 @@ const [email, setEmail] = useState("");
 
   const [storeForm, setStoreForm] = useState<StoreForm>(emptyStoreForm);
 
-  const [activeTab, setActiveTab] = useState<"orders" | "products" | "settings" | "adminSummary" | "adminSellers" | "adminPlans" | "adminPayments">("orders");
+  const [activeTab, setActiveTab] = useState<DashboardTab>(() => getInitialDashboardTab());
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (!token || typeof window === "undefined") return;
+
+    localStorage.setItem("storeplug.activeTab", activeTab);
+
+    const nextHash = `#${activeTab}`;
+    if (window.location.hash !== nextHash) {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${nextHash}`);
+    }
+  }, [token, activeTab]);
   const [message, setMessage] = useState("");
   
   
@@ -591,9 +634,21 @@ const [error, setError] = useState("");
     setMessage("");
     setLoginDebug("Login clicked.");
 
-    if (!loginEmail || !loginPassword) {
-      setError("Enter your email and password.");
-      setLoginDebug("Stopped: email or password is empty.");
+    if (!loginEmail) {
+      setError("Enter your email address.");
+      setLoginDebug("Stopped: email is empty.");
+      return;
+    }
+
+    if (!/^\S+@\S+\.\S+$/.test(loginEmail)) {
+      setError("Enter a valid email address.");
+      setLoginDebug("Stopped: invalid email format.");
+      return;
+    }
+
+    if (!loginPassword) {
+      setError("Enter your password.");
+      setLoginDebug("Stopped: password is empty.");
       return;
     }
 
@@ -635,7 +690,11 @@ const [error, setError] = useState("");
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        throw new Error(getApiErrorMessage(data, "Login failed"));
+        if ([400, 401, 403].includes(res.status)) {
+          throw new Error("Invalid email or password.");
+        }
+
+        throw new Error(getApiErrorMessage(data, "Login failed. Please try again."));
       }
 
       if (!data?.access_token) {
@@ -655,7 +714,15 @@ const [error, setError] = useState("");
         setError("Login request timed out.");
         setLoginDebug(`Timeout after ${elapsed}ms while trying: ${url}`);
       } else {
-        setError(err instanceof Error ? err.message : "Something went wrong");
+        const rawMessage = err instanceof Error ? err.message : "Something went wrong";
+        const friendlyMessage =
+          rawMessage.toLowerCase().includes("load failed") ||
+          rawMessage.toLowerCase().includes("failed to fetch") ||
+          rawMessage.toLowerCase().includes("network")
+            ? "Could not reach the server. Check your connection and try again."
+            : rawMessage;
+
+        setError(friendlyMessage);
         setLoginDebug(
           err instanceof Error
             ? `Failed after ${elapsed}ms: ${err.message}\nURL: ${url}`
@@ -1882,9 +1949,8 @@ try {
 
           <form className="login-card premium-login-card" onSubmit={login}>
             <div className="login-card-head">
-              <span className="login-mini-badge">Secure login</span>
-              <h2>Welcome back</h2>
-              <p>Sign in to manage your merchant dashboard.</p>
+              <h2>Sign in to StorePlug</h2>
+              <p>Manage your storefront, orders, products, and payments from one workspace.</p>
             </div>
 
             <label>
@@ -1924,16 +1990,19 @@ try {
               </div>
             </label>
 
+            {error && (
+              <div className="login-error-card" role="alert">
+                <strong>Sign in failed</strong>
+                <span>{error}</span>
+              </div>
+            )}
+
             <button className="premium-login-btn" type="submit" disabled={loginLoading}>
               {loginLoading ? "Signing in..." : "Login to dashboard"}
             </button>
 
-            {loginDebug && (
-              <pre className="login-debug-panel">{loginDebug}</pre>
-            )}
-
             <p className="login-security-note">
-              Your dashboard session is protected with secure merchant authentication.
+              Protected merchant access for your StorePlug dashboard.
             </p>
           </form>
         </section>
