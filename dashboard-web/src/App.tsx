@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { LoginPage } from "./pages/LoginPage";
+import { Sidebar } from "./layouts/Sidebar";
 import "./App.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
@@ -1964,153 +1965,28 @@ try {
         </div>
       </div>
 
-      {isSidebarOpen && (
-        <button
-          type="button"
-          className="sidebar-backdrop"
-          onClick={() => setIsSidebarOpen(false)}
-          aria-label="Close dashboard menu"
-        />
-      )}
-
-      <aside className={isSidebarOpen ? "sidebar open" : "sidebar"}>
-        <div className="sidebar-brand">
-          <div className="brand-mark">SP</div>
-
-          <div className="brand-copy">
-            <h2>StorePlug</h2>
-            <p className="muted">Merchant dashboard</p>
-          </div>
-
-          <button
-            type="button"
-            className="sidebar-close"
-            onClick={() => setIsSidebarOpen(false)}
-            aria-label="Close dashboard menu"
-          >
-            <span></span>
-            <span></span>
-          </button>
-        </div>
-
-        <div className="store-switcher">
-          <label>Current store</label>
-          <select
-            value={selectedStore?.id || ""}
-            onChange={(e) => {
-              const store = stores.find((item) => item.id === e.target.value);
-              setSelectedStore(store || null);
-            }}
-          >
-            {stores.map((store) => (
-              <option key={store.id} value={store.id}>
-                {store.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <nav className="sidebar-nav">
-          <div className="nav-group">
-            <p className="nav-group-title">Store</p>
-
-            <button
-              className={activeTab === "orders" ? "nav-btn active" : "nav-btn"}
-              onClick={() => {
-                setActiveTab("orders");
-                setIsSidebarOpen(false);
-              }}
-            >
-              Orders
-            </button>
-
-            <button
-              className={activeTab === "products" ? "nav-btn active" : "nav-btn"}
-              onClick={() => {
-                setActiveTab("products");
-                setIsSidebarOpen(false);
-              }}
-            >
-              Products
-            </button>
-
-            <button
-              className={activeTab === "settings" ? "nav-btn active" : "nav-btn"}
-              onClick={() => {
-                setActiveTab("settings");
-                setIsSidebarOpen(false);
-              }}
-            >
-              Store profile
-            </button>
-          </div>
-
-          {isPlatformAdmin && (
-            <div className="nav-group">
-              <p className="nav-group-title">Admin</p>
-
-              <button
-                className={activeTab === "adminSummary" ? "nav-btn active" : "nav-btn"}
-                onClick={() => {
-                  setActiveTab("adminSummary");
-                  setIsSidebarOpen(false);
-                  loadAdminSubscriptionSummary();
-                }}
-              >
-                Business overview
-              </button>
-
-              <button
-                className={activeTab === "adminSellers" ? "nav-btn active" : "nav-btn"}
-                onClick={() => {
-                  setActiveTab("adminSellers");
-                  setIsSidebarOpen(false);
-                  loadAdminStores();
-                  loadAdminSubscriptionPayments();
-                }}
-              >
-                Sellers
-              </button>
-
-              <button
-                className={activeTab === "adminPlans" ? "nav-btn active" : "nav-btn"}
-                onClick={() => {
-                  setActiveTab("adminPlans");
-                  setIsSidebarOpen(false);
-                  loadSubscriptionPlans();
-                }}
-              >
-                Plans
-              </button>
-              <button
-                className={activeTab === "adminPayments" ? "nav-btn active" : "nav-btn"}
-                onClick={() => {
-                  setActiveTab("adminPayments");
-                  setIsSidebarOpen(false);
-                  loadAdminSubscriptionPayments();
-                }}
-              >
-                Payments
-              </button>
-            </div>
-          )}
-
-          <div className="nav-group nav-footer">
-            <a
-              className="public-link"
-              href={PUBLIC_STORE_URL + "/" + (selectedStore?.slug || "")}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open public store
-            </a>
-
-            <button className="logout-btn" onClick={logout}>
-              Logout
-            </button>
-          </div>
-        </nav>
-      </aside>
+      <Sidebar
+        isSidebarOpen={isSidebarOpen}
+        selectedStore={selectedStore}
+        stores={stores}
+        activeTab={activeTab}
+        isPlatformAdmin={isPlatformAdmin}
+        publicStoreUrl={PUBLIC_STORE_URL}
+        onClose={() => setIsSidebarOpen(false)}
+        onSelectStore={(storeId) => {
+          const store = stores.find((item) => item.id === storeId);
+          setSelectedStore(store || null);
+        }}
+        onOpenTab={(tab) => {
+          setActiveTab(tab);
+          setIsSidebarOpen(false);
+        }}
+        onLoadAdminSubscriptionSummary={loadAdminSubscriptionSummary}
+        onLoadAdminStores={loadAdminStores}
+        onLoadAdminSubscriptionPayments={loadAdminSubscriptionPayments}
+        onLoadSubscriptionPlans={loadSubscriptionPlans}
+        onLogout={logout}
+      />
 
       <section className="content">
         <div className={`topbar topbar-${activeTab}`}>
