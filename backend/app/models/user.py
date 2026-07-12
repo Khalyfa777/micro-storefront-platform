@@ -1,7 +1,7 @@
-﻿import uuid
+import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, func
+from sqlalchemy import Boolean, DateTime, Index, String, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -62,3 +62,10 @@ class User(Base):
     )
 
     stores = relationship("Store", back_populates="owner")
+
+Index(
+    "ix_users_merchants_created_at_id_desc",
+    User.created_at.desc(),
+    User.id.desc(),
+    postgresql_where=text("role = 'merchant'"),
+)

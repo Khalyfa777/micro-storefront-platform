@@ -1,4 +1,4 @@
-﻿import uuid
+import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint, func, text
@@ -97,3 +97,10 @@ class SellerInvitation(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+Index(
+    "ix_seller_invitations_user_created_at_id_desc",
+    SellerInvitation.user_id,
+    SellerInvitation.created_at.desc(),
+    SellerInvitation.id.desc(),
+)

@@ -187,3 +187,83 @@ class AdminSellerOnboardingCancelResponse(BaseModel):
 
     onboarding_status: Literal["cancelled"]
     revoked_at: datetime
+
+
+class AdminSellerStoreSummary(BaseModel):
+    id: UUID
+    name: str
+    slug: str
+
+    publication_status: str
+    is_active: bool
+    is_suspended: bool
+
+    plan_name: str
+    subscription_status: str
+    monthly_fee: Decimal
+
+    trial_ends_at: datetime | None = None
+    subscription_ends_at: datetime | None = None
+
+    created_at: datetime
+
+
+class AdminSellerInvitationSummary(BaseModel):
+    id: UUID
+    store_id: UUID
+
+    status: Literal[
+        "active",
+        "expired",
+        "accepted",
+        "revoked",
+    ]
+
+    expires_at: datetime
+    accepted_at: datetime | None = None
+    revoked_at: datetime | None = None
+    created_at: datetime
+
+
+class AdminSellerListItem(BaseModel):
+    seller_id: UUID
+
+    full_name: str
+    email: EmailStr
+    phone_number: str | None = None
+
+    account_status: Literal[
+        "invited",
+        "active",
+        "suspended",
+    ]
+
+    setup_status: Literal[
+        "pending",
+        "completed",
+        "cancelled",
+    ]
+
+    invitation_status: Literal[
+        "active",
+        "expired",
+        "accepted",
+        "revoked",
+        "none",
+    ]
+
+    latest_invitation: (
+        AdminSellerInvitationSummary | None
+    ) = None
+
+    store_count: int
+    stores: list[AdminSellerStoreSummary]
+
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminSellerListResponse(BaseModel):
+    items: list[AdminSellerListItem]
+    next_cursor: str | None = None
+    has_more: bool

@@ -1,14 +1,16 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    Query,
     status,
 )
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +30,17 @@ from app.schemas.seller import (
     AdminSellerInvitationRegenerateResponse,
     AdminSellerOnboardingCancelRequest,
     AdminSellerOnboardingCancelResponse,
+    AdminSellerInvitationSummary,
+    AdminSellerListItem,
+    AdminSellerListResponse,
+    AdminSellerStoreSummary,
+)
+from app.services.seller_listing import (
+    decode_seller_cursor,
+    derive_account_status,
+    derive_invitation_status,
+    derive_setup_status,
+    encode_seller_cursor,
 )
 from app.services.seller_invitation import (
     build_invitation_url,
@@ -585,3 +598,291 @@ async def cancel_seller_onboarding(
     except Exception:
         await db.rollback()
         raise
+
+
+@router.get(
+    "",
+    response_model=AdminSellerListResponse,
+)
+async def list_admin_sellers(
+    limit: Annotated[
+        int,
+        Query(
+            ge=1,
+            le=100,
+            description=(
+                "Number of seller accounts to return."
+            ),
+        ),
+    ] = 25,
+    cursor: Annotated[
+        str | None,
+        Query(
+            max_length=512,
+            description=(
+                "Opaque cursor from the previous page."
+            ),
+        ),
+    ] = None,
+    current_admin: User = Depends(
+        require_platform_admin
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> AdminSellerListResponse:
+    del current_admin
+
+    cursor_value = (
+        decode_seller_cursor(cursor)
+        if cursor is not None
+        else None
+    )
+
+    seller_query = select(User).where(
+        User.role == "merchant"
+    )
+
+    if cursor_value is not None:
+        seller_query = seller_query.where(
+            or_(
+                User.created_at
+                < cursor_value.created_at,
+                and_(
+                    User.created_at
+                    == cursor_value.created_at,
+                    User.id
+                    < cursor_value.seller_id,
+                ),
+            )
+        )
+
+    seller_result = await db.execute(
+        seller_query
+        .order_by(
+            User.created_at.desc(),
+            User.id.desc(),
+        )
+        .limit(limit + 1)
+    )
+
+    fetched_sellers = list(
+        seller_result.scalars().all()
+    )
+
+    has_more = len(fetched_sellers) > limit
+    sellers = fetched_sellers[:limit]
+
+    if not sellers:
+        return AdminSellerListResponse(
+            items=[],
+            next_cursor=None,
+            has_more=False,
+        )
+
+    seller_ids = [
+        seller.id
+        for seller in sellers
+    ]
+
+    store_result = await db.execute(
+        select(Store)
+        .where(
+            Store.owner_id.in_(seller_ids)
+        )
+        .order_by(
+            Store.owner_id.asc(),
+            Store.created_at.desc(),
+            Store.id.desc(),
+        )
+    )
+
+    stores_by_seller: dict[
+        UUID,
+        list[Store],
+    ] = {
+        seller_id: []
+        for seller_id in seller_ids
+    }
+
+    for store in store_result.scalars().all():
+        stores_by_seller.setdefault(
+            store.owner_id,
+            [],
+        ).append(store)
+
+    ranked_invitations = (
+        select(
+            SellerInvitation.id.label(
+                "invitation_id"
+            ),
+            func.row_number()
+            .over(
+                partition_by=(
+                    SellerInvitation.user_id
+                ),
+                order_by=(
+                    SellerInvitation
+                    .created_at.desc(),
+                    SellerInvitation.id.desc(),
+                ),
+            )
+            .label("row_number"),
+        )
+        .where(
+            SellerInvitation.user_id.in_(
+                seller_ids
+            )
+        )
+        .subquery()
+    )
+
+    invitation_result = await db.execute(
+        select(SellerInvitation)
+        .join(
+            ranked_invitations,
+            ranked_invitations.c.invitation_id
+            == SellerInvitation.id,
+        )
+        .where(
+            ranked_invitations.c.row_number == 1
+        )
+    )
+
+    latest_invitation_by_seller = {
+        invitation.user_id: invitation
+        for invitation
+        in invitation_result.scalars().all()
+    }
+
+    now = datetime.now(timezone.utc)
+    items: list[AdminSellerListItem] = []
+
+    for seller in sellers:
+        try:
+            account_status = (
+                derive_account_status(seller)
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "Seller account state is "
+                    "inconsistent."
+                ),
+            ) from exc
+
+        latest_invitation = (
+            latest_invitation_by_seller.get(
+                seller.id
+            )
+        )
+
+        invitation_status = (
+            derive_invitation_status(
+                latest_invitation,
+                now,
+            )
+        )
+
+        invitation_summary = None
+
+        if latest_invitation is not None:
+            invitation_summary = (
+                AdminSellerInvitationSummary(
+                    id=latest_invitation.id,
+                    store_id=(
+                        latest_invitation.store_id
+                    ),
+                    status=invitation_status,
+                    expires_at=(
+                        latest_invitation.expires_at
+                    ),
+                    accepted_at=(
+                        latest_invitation.accepted_at
+                    ),
+                    revoked_at=(
+                        latest_invitation.revoked_at
+                    ),
+                    created_at=(
+                        latest_invitation.created_at
+                    ),
+                )
+            )
+
+        seller_stores = stores_by_seller.get(
+            seller.id,
+            [],
+        )
+
+        store_summaries = [
+            AdminSellerStoreSummary(
+                id=store.id,
+                name=store.name,
+                slug=store.slug,
+                publication_status=(
+                    store.publication_status
+                ),
+                is_active=store.is_active,
+                is_suspended=(
+                    store.is_suspended
+                ),
+                plan_name=store.plan_name,
+                subscription_status=(
+                    store.subscription_status
+                ),
+                monthly_fee=store.monthly_fee,
+                trial_ends_at=(
+                    store.trial_ends_at
+                ),
+                subscription_ends_at=(
+                    store.subscription_ends_at
+                ),
+                created_at=store.created_at,
+            )
+            for store in seller_stores
+        ]
+
+        items.append(
+            AdminSellerListItem(
+                seller_id=seller.id,
+                full_name=seller.full_name,
+                email=seller.email,
+                phone_number=(
+                    seller.phone_number
+                ),
+                account_status=account_status,
+                setup_status=(
+                    derive_setup_status(
+                        seller,
+                        invitation_status,
+                    )
+                ),
+                invitation_status=(
+                    invitation_status
+                ),
+                latest_invitation=(
+                    invitation_summary
+                ),
+                store_count=len(
+                    store_summaries
+                ),
+                stores=store_summaries,
+                created_at=seller.created_at,
+                updated_at=seller.updated_at,
+            )
+        )
+
+    next_cursor = None
+
+    if has_more:
+        final_seller = sellers[-1]
+
+        next_cursor = encode_seller_cursor(
+            final_seller.created_at,
+            final_seller.id,
+        )
+
+    return AdminSellerListResponse(
+        items=items,
+        next_cursor=next_cursor,
+        has_more=has_more,
+    )

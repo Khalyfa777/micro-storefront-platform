@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Boolean, Text, DateTime, ForeignKey, func, Numeric
+from sqlalchemy import String, Boolean, Text, DateTime, ForeignKey, func, Numeric, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -35,3 +35,10 @@ class Store(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     owner = relationship("User", back_populates="stores")
     products = relationship("Product", back_populates="store", cascade="all, delete-orphan")
+
+Index(
+    "ix_stores_owner_created_at_id_desc",
+    Store.owner_id,
+    Store.created_at.desc(),
+    Store.id.desc(),
+)
