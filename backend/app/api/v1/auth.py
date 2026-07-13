@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +23,15 @@ from app.services.auth_rate_limit import (
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+# Valid bcrypt hash used only to equalize password
+# verification work when no account password exists.
+# It is not associated with a real account.
+DUMMY_LOGIN_PASSWORD_HASH = (
+    "$2b$12$C6UzMDM.H6dfI/f/IKcEe."
+    "5BE4g6Mwdt4PGMTgpT2q47R4F8AT0sK"
+)
 
 
 def _normalize_email(value: str) -> str:
@@ -140,13 +149,21 @@ async def login(
 
     user = result.scalar_one_or_none()
 
+    password_hash = (
+        user.password_hash
+        if user and user.password_hash
+        else DUMMY_LOGIN_PASSWORD_HASH
+    )
+
+    password_matches = verify_password(
+        payload.password,
+        password_hash,
+    )
+
     credentials_are_valid = bool(
         user
         and user.password_hash
-        and verify_password(
-            payload.password,
-            user.password_hash,
-        )
+        and password_matches
     )
 
     if not credentials_are_valid:
