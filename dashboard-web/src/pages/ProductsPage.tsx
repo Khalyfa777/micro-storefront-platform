@@ -136,7 +136,7 @@ export function ProductsPage({
                         slug: editingProductId ? prev.slug : makeSlug(name),
                       }));
                     }}
-                    placeholder="Nike Dunk Low"
+                    placeholder="e.g. Canvas Tote Bag"
                     required
                   />
                 </label>
@@ -151,7 +151,7 @@ export function ProductsPage({
                         slug: makeSlug(e.target.value),
                       }))
                     }
-                    placeholder="nike-dunk-low"
+                    placeholder="e.g. canvas-tote-bag"
                     required
                   />
                 </label>
@@ -166,7 +166,7 @@ export function ProductsPage({
                         description: e.target.value,
                       }))
                     }
-                    placeholder="Short product description"
+                    placeholder="e.g. Durable canvas tote for everyday use."
                   />
                 </label>
 
@@ -219,7 +219,7 @@ export function ProductsPage({
                           price: e.target.value,
                         }))
                       }
-                      placeholder="850"
+                      placeholder="e.g. 150.00"
                       required
                     />
                   </label>
@@ -236,7 +236,7 @@ export function ProductsPage({
                           stock_quantity: e.target.value,
                         }))
                       }
-                      placeholder="10"
+                      placeholder="e.g. 10"
                     />
                   </label>
                 </div>

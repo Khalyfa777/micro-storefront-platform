@@ -2,7 +2,19 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import String, DateTime, ForeignKey, Numeric, Integer, Boolean, Text, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,10 +24,56 @@ from app.db.base import Base
 class Order(Base):
     __tablename__ = "orders"
 
+    __table_args__ = (
+        CheckConstraint(
+            """
+            (
+                idempotency_key IS NULL
+                AND request_fingerprint IS NULL
+            )
+            OR
+            (
+                idempotency_key IS NOT NULL
+                AND char_length(
+                    idempotency_key
+                ) BETWEEN 16 AND 128
+                AND request_fingerprint IS NOT NULL
+                AND char_length(
+                    request_fingerprint
+                ) = 64
+            )
+            """,
+            name=(
+                "ck_orders_"
+                "idempotency_fields_valid"
+            ),
+        ),
+        Index(
+            (
+                "uq_orders_store_id_"
+                "idempotency_key"
+            ),
+            "store_id",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=text(
+                "idempotency_key IS NOT NULL"
+            ),
+        ),
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     store_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("stores.id"), nullable=False, index=True)
 
     order_number: Mapped[str] = mapped_column(String(30), unique=True, index=True, nullable=False)
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+    )
+    request_fingerprint: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
     status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
     payment_method: Mapped[str | None] = mapped_column(String(30), nullable=True)
     inventory_deducted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

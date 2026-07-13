@@ -119,6 +119,7 @@ def _store_summary(
             store.subscription_ends_at
         ),
         created_at=store.created_at,
+        updated_at=store.updated_at,
     )
 
 

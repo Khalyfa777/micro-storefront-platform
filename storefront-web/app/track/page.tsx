@@ -5,20 +5,15 @@ import { useEffect, useState } from "react";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 type OrderItem = {
-  id: string;
   product_name: string;
-  unit_price: string;
   quantity: number;
   line_total: string;
 };
 
 type Order = {
-  id: string;
   order_number: string;
-  store_slug?: string | null;
+  store_slug: string;
   status: string;
-  customer_name: string;
-  customer_phone: string;
   total: string;
   currency: string;
   created_at: string;
@@ -39,9 +34,18 @@ export default function TrackOrderPage() {
 
     try {
       const res = await fetch(
-        `${API_URL}/public/orders/${encodeURIComponent(
-          orderNo.trim()
-        )}?customer_phone=${encodeURIComponent(phoneNo.trim())}`
+        `${API_URL}/public/orders/track`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
+          body: JSON.stringify({
+            order_number: orderNo.trim(),
+            customer_phone: phoneNo.trim(),
+          }),
+        },
       );
 
       const data = await res.json();
@@ -64,15 +68,33 @@ export default function TrackOrderPage() {
   }
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const orderParam = params.get("order") || "";
-    const phoneParam = params.get("phone") || "";
+    const params = new URLSearchParams(
+      window.location.search,
+    );
 
-    if (orderParam) setOrderNumber(orderParam);
-    if (phoneParam) setPhone(phoneParam);
+    const orderParam =
+      params.get("order") || "";
 
-    if (orderParam && phoneParam) {
-      lookupOrder(orderParam, phoneParam);
+    if (orderParam) {
+      setOrderNumber(orderParam);
+    }
+
+    // Remove phone numbers from legacy
+    // tracking URLs without reading them.
+    if (params.has("phone")) {
+      params.delete("phone");
+
+      const query = params.toString();
+
+      const nextUrl = query
+        ? `${window.location.pathname}?${query}`
+        : window.location.pathname;
+
+      window.history.replaceState(
+        null,
+        "",
+        nextUrl,
+      );
     }
   }, []);
 
@@ -91,7 +113,11 @@ export default function TrackOrderPage() {
             <input
               value={orderNumber}
               onChange={(e) => setOrderNumber(e.target.value.toUpperCase())}
-              placeholder="ORD-411794F1D8"
+              name="order-number"
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              placeholder="e.g. ORD-ABC1234567"
               required
             />
           </label>
@@ -101,12 +127,22 @@ export default function TrackOrderPage() {
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="0544193559"
+              name="customer-phone"
+              autoComplete="tel"
+              inputMode="tel"
+              placeholder="e.g. 024 123 4567"
               required
             />
           </label>
 
-          {error && <div className="error-box">{error}</div>}
+          {error && (
+            <div
+              className="error-box"
+              role="alert"
+            >
+              {error}
+            </div>
+          )}
 
           <button className="submit-order-btn" type="submit" disabled={loading}>
             {loading ? "Checking..." : "Track order"}
@@ -127,8 +163,11 @@ export default function TrackOrderPage() {
             </div>
 
             <div className="track-items">
-              {order.items.map((item) => (
-                <div className="track-item" key={item.id}>
+              {order.items.map((item, index) => (
+                <div
+                  className="track-item"
+                  key={`${item.product_name}-${index}`}
+                >
                   <span>
                     {item.product_name} x {item.quantity}
                   </span>
@@ -146,13 +185,17 @@ export default function TrackOrderPage() {
               </strong>
             </div>
 
-            <p className="track-muted">
-              Customer: {order.customer_name} - {order.customer_phone}
-            </p>
           </div>
         )}
 
-        <a className="track-store-link" href={order?.store_slug ? `/${order.store_slug}` : "/"}>Back to store</a>
+        {order && (
+          <a
+            className="track-store-link"
+            href="/track"
+          >
+            Track another order
+          </a>
+        )}
       </section>
     </main>
   );

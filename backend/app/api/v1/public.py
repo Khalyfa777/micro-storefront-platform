@@ -15,7 +15,7 @@ router = APIRouter(tags=["public"])
 
 
 async def get_public_online_payment_flag(db: AsyncSession, store: Store) -> bool:
-    plan_name = (store.plan_name or "starter").lower().strip()
+    plan_name = (store.plan_name or "").lower().strip()
 
     result = await db.execute(
         select(SubscriptionPlan).where(SubscriptionPlan.name == plan_name)
@@ -36,7 +36,7 @@ async def get_public_online_payment_flag(db: AsyncSession, store: Store) -> bool
         "custom": True,
     }
 
-    return fallback_online_payment_flags.get(plan_name, True)
+    return fallback_online_payment_flags.get(plan_name, False)
 class PublicStorePayload(BaseModel):
     store: StorePublicResponse
     products: list[ProductResponse]

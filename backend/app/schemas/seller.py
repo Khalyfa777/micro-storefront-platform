@@ -206,6 +206,7 @@ class AdminSellerStoreSummary(BaseModel):
     subscription_ends_at: datetime | None = None
 
     created_at: datetime
+    updated_at: datetime
 
 
 class AdminSellerInvitationSummary(BaseModel):

@@ -23,6 +23,7 @@ type Store = {
   banner_url?: string | null;
   whatsapp_number?: string | null;
   category?: string | null;
+  can_receive_online_payments: boolean;
 };
 
 type StoreFetchResult = {
@@ -81,8 +82,8 @@ export default async function ProductOrderPage({
               : "This store does not exist or is currently unavailable."}
           </p>
 
-          <a className="btn btn-dark" href={isUnavailable ? "/track" : "/"}>
-            {isUnavailable ? "Track order" : "Go home"}
+          <a className="btn btn-dark" href="/track">
+            Track order
           </a>
         </div>
       </main>

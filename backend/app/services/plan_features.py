@@ -33,7 +33,7 @@ async def get_subscription_plan_for_store(
     db: AsyncSession,
     store: Store,
 ) -> SubscriptionPlan | None:
-    plan_name = (store.plan_name or "starter").lower().strip()
+    plan_name = (store.plan_name or "").lower().strip()
 
     result = await db.execute(
         select(SubscriptionPlan).where(SubscriptionPlan.name == plan_name)
@@ -43,10 +43,10 @@ async def get_subscription_plan_for_store(
 
 
 def get_default_feature_value(plan_name: str | None, feature_name: str) -> bool:
-    normalized_plan_name = (plan_name or "starter").lower().strip()
+    normalized_plan_name = (plan_name or "").lower().strip()
     plan_features = DEFAULT_PLAN_FEATURES.get(
         normalized_plan_name,
-        DEFAULT_PLAN_FEATURES["starter"],
+        {},
     )
 
     return bool(plan_features.get(feature_name, False))

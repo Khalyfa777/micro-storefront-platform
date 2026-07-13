@@ -4076,3 +4076,55 @@ canvas {
 }
 
 /* === STOREPLUG MOBILE VIEWPORT LOCK END === */
+
+/* === STOREPLUG LAUNCH MOBILE SEAM FIX === */
+
+@media (max-width: 820px) {
+  html,
+  body,
+  #root,
+  .dashboard {
+    width: 100% !important;
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    border: 0 !important;
+    outline: 0 !important;
+  }
+
+  .dashboard {
+    overflow-x: clip !important;
+  }
+
+  .dashboard .sidebar {
+    border: 0 !important;
+    box-shadow: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  .dashboard .sidebar.open {
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    box-shadow:
+      24px 0 70px
+      rgba(2, 6, 23, 0.48) !important;
+  }
+
+  .content,
+  .mobile-shell-bar {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    outline: 0 !important;
+  }
+
+  .content {
+    overflow-x: clip !important;
+  }
+}

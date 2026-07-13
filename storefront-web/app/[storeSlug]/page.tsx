@@ -1,6 +1,23 @@
 import SafeProductImage from "../components/SafeProductImage";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
+function formatMoney(value: string | number) {
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount)) {
+    return "GHS 0.00";
+  }
+
+  const fixed = amount.toFixed(2);
+  const [whole, decimal] = fixed.split(".");
+  const grouped = whole.replace(
+    /\B(?=(\d{3})+(?!\d))/g,
+    ",",
+  );
+
+  return `GHS ${grouped}.${decimal}`;
+}
+
 function getProductInitial(name?: string | null) {
   const cleanName = String(name || "").trim();
   return cleanName.charAt(0).toUpperCase() || "P";
@@ -52,6 +69,7 @@ type Store = {
   banner_url?: string | null;
   whatsapp_number?: string | null;
   category?: string | null;
+  can_receive_online_payments: boolean;
 };
 
 type StoreFetchResult =
@@ -176,7 +194,12 @@ export default async function StorePage({
             <h2>Available items</h2>
           </div>
 
-          <span>{products.length} item(s)</span>
+          <span>
+            {products.length}{" "}
+            {products.length === 1
+              ? "item"
+              : "items"}
+          </span>
         </div>
 
         <div className="product-grid">
@@ -202,7 +225,9 @@ export default async function StorePage({
                   <p>{product.description || "No description added."}</p>
 
                   <div className="product-meta-row">
-                    <strong>GHS {Number(product.price).toFixed(2)}</strong>
+                    <strong>
+                      {formatMoney(product.price)}
+                    </strong>
                     <span>
                       {hasStock
                         ? isSoldOut

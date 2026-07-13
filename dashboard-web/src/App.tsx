@@ -525,6 +525,205 @@ const emptyProductForm: ProductForm = {
   is_featured: false,
 };
 
+
+const PRODUCT_DRAFT_STORAGE_PREFIX =
+  "storeplug.productDraft.";
+
+const PRODUCT_DRAFT_MAX_AGE_MS =
+  24 * 60 * 60 * 1000;
+
+type StoredProductDraft = {
+  form: ProductForm;
+  editingProductId: string;
+  isOpen: boolean;
+  savedAt: number;
+};
+
+function getProductDraftStorageKey(
+  storeId: string,
+) {
+  return (
+    PRODUCT_DRAFT_STORAGE_PREFIX +
+    storeId
+  );
+}
+
+function normalizeStoredProductForm(
+  value: unknown,
+): ProductForm | null {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    return null;
+  }
+
+  const form = value as Record<
+    string,
+    unknown
+  >;
+
+  return {
+    name:
+      typeof form.name === "string"
+        ? form.name
+        : "",
+    slug:
+      typeof form.slug === "string"
+        ? form.slug
+        : "",
+    description:
+      typeof form.description === "string"
+        ? form.description
+        : "",
+    image_url:
+      typeof form.image_url === "string"
+        ? form.image_url
+        : "",
+    product_type:
+      typeof form.product_type === "string"
+        ? form.product_type
+        : "physical",
+    price:
+      typeof form.price === "string"
+        ? form.price
+        : "",
+    stock_quantity:
+      typeof form.stock_quantity === "string"
+        ? form.stock_quantity
+        : "0",
+    is_active:
+      typeof form.is_active === "boolean"
+        ? form.is_active
+        : true,
+    is_featured:
+      typeof form.is_featured === "boolean"
+        ? form.is_featured
+        : false,
+  };
+}
+
+function readStoredProductDraft(
+  storeId: string,
+): StoredProductDraft | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const key =
+    getProductDraftStorageKey(storeId);
+
+  try {
+    const raw =
+      window.sessionStorage.getItem(key);
+
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as {
+      form?: unknown;
+      editingProductId?: unknown;
+      isOpen?: unknown;
+      savedAt?: unknown;
+    };
+
+    if (
+      typeof parsed.savedAt !== "number" ||
+      Date.now() - parsed.savedAt >
+        PRODUCT_DRAFT_MAX_AGE_MS
+    ) {
+      window.sessionStorage.removeItem(key);
+      return null;
+    }
+
+    const form =
+      normalizeStoredProductForm(
+        parsed.form,
+      );
+
+    if (!form) {
+      window.sessionStorage.removeItem(key);
+      return null;
+    }
+
+    const editingProductId =
+      typeof parsed.editingProductId ===
+      "string"
+        ? parsed.editingProductId
+        : "";
+
+    const isOpen =
+      parsed.isOpen === true ||
+      Boolean(editingProductId);
+
+    if (!isOpen) {
+      window.sessionStorage.removeItem(key);
+      return null;
+    }
+
+    return {
+      form,
+      editingProductId,
+      isOpen,
+      savedAt: parsed.savedAt,
+    };
+  } catch {
+    window.sessionStorage.removeItem(key);
+    return null;
+  }
+}
+
+function writeStoredProductDraft(
+  storeId: string,
+  draft: Omit<
+    StoredProductDraft,
+    "savedAt"
+  >,
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.setItem(
+    getProductDraftStorageKey(storeId),
+    JSON.stringify({
+      ...draft,
+      savedAt: Date.now(),
+    }),
+  );
+}
+
+function removeStoredProductDraft(
+  storeId: string,
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.removeItem(
+    getProductDraftStorageKey(storeId),
+  );
+}
+
+function clearStoredProductDrafts() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  Object.keys(window.sessionStorage)
+    .filter((key) =>
+      key.startsWith(
+        PRODUCT_DRAFT_STORAGE_PREFIX,
+      ),
+    )
+    .forEach((key) => {
+      window.sessionStorage.removeItem(key);
+    });
+}
+
+
 const emptyStoreForm: StoreForm = {
   name: "",
   slug: "",
@@ -641,6 +840,41 @@ const [email, setEmail] = useState("");
       window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${nextHash}`);
     }
   }, [token, activeTab]);
+
+  useEffect(() => {
+    if (
+      !token ||
+      !selectedStore
+    ) {
+      return;
+    }
+
+    if (
+      !isProductFormOpen &&
+      !editingProductId
+    ) {
+      removeStoredProductDraft(
+        selectedStore.id,
+      );
+      return;
+    }
+
+    writeStoredProductDraft(
+      selectedStore.id,
+      {
+        form: productForm,
+        editingProductId,
+        isOpen: true,
+      },
+    );
+  }, [
+    token,
+    selectedStore,
+    productForm,
+    editingProductId,
+    isProductFormOpen,
+  ]);
+
   const [message, setMessage] = useState("");
   
   
@@ -825,11 +1059,15 @@ const [error, setError] = useState("");
 
   function logout() {
     localStorage.removeItem("token");
+    clearStoredProductDrafts();
     setToken("");
     setStores([]);
     setSelectedStore(null);
     setOrders([]);
     setProducts([]);
+    setProductForm(emptyProductForm);
+    setEditingProductId("");
+    setIsProductFormOpen(false);
     setStoreForm(emptyStoreForm);
   }
 
@@ -845,6 +1083,39 @@ const [error, setError] = useState("");
       setLoadingSubscriptionUsage(false);
     }
   }
+
+  function selectStore(
+    store: Store | null,
+  ) {
+    setSelectedStore(store);
+
+    if (!store) {
+      setProductForm(emptyProductForm);
+      setEditingProductId("");
+      setIsProductFormOpen(false);
+      return;
+    }
+
+    const storedDraft =
+      readStoredProductDraft(store.id);
+
+    if (!storedDraft) {
+      setProductForm(emptyProductForm);
+      setEditingProductId("");
+      setIsProductFormOpen(false);
+      return;
+    }
+
+    setProductForm(storedDraft.form);
+    setEditingProductId(
+      storedDraft.editingProductId,
+    );
+    setIsProductFormOpen(
+      storedDraft.isOpen,
+    );
+  }
+
+
   async function loadStores() {
     const data = await apiFetch("/stores/");
     setStores(data);
@@ -854,7 +1125,7 @@ const [error, setError] = useState("");
         ? data.find((store: Store) => store.id === selectedStore.id)
         : null;
 
-      setSelectedStore(current || data[0]);
+      selectStore(current || data[0]);
     }
   }
 
@@ -918,6 +1189,12 @@ try {
   }
 
   function cancelProductEdit() {
+    if (selectedStore) {
+      removeStoredProductDraft(
+        selectedStore.id,
+      );
+    }
+
     setEditingProductId("");
     setProductForm(emptyProductForm);
     setIsProductFormOpen(false);
@@ -1067,6 +1344,9 @@ try {
         setMessage("Product created.");
       }
 
+      removeStoredProductDraft(
+        selectedStore.id,
+      );
       setProductForm(emptyProductForm);
       setEditingProductId("");
       setIsProductFormOpen(false);
@@ -2259,7 +2539,7 @@ try {
           onClose={() => setIsSidebarOpen(false)}
           onSelectStore={(storeId) => {
             const store = stores.find((item) => item.id === storeId);
-            setSelectedStore(store || null);
+            selectStore(store || null);
           }}
           onOpenTab={(tab) => {
             setActiveTab(tab);

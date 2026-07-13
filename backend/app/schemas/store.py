@@ -1,9 +1,18 @@
-from decimal import Decimal
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    field_validator,
+)
+
+from app.utils.slug import (
+    validate_canonical_slug,
+    validate_store_name,
+)
 
 
 class StoreCreate(BaseModel):
@@ -17,6 +26,24 @@ class StoreCreate(BaseModel):
     category: str | None = None
     theme: Any = None
 
+    @field_validator("slug")
+    @classmethod
+    def validate_slug(
+        cls,
+        value: str,
+    ) -> str:
+        return validate_canonical_slug(
+            value
+        )
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(
+        cls,
+        value: str,
+    ) -> str:
+        return validate_store_name(value)
+
 
 class StoreUpdate(BaseModel):
     slug: str | None = None
@@ -28,6 +55,34 @@ class StoreUpdate(BaseModel):
     social_links: dict | None = None
     category: str | None = None
     theme: Any = None
+
+    @field_validator("slug")
+    @classmethod
+    def validate_slug(
+        cls,
+        value: str | None,
+    ) -> str:
+        if value is None:
+            raise ValueError(
+                "Store slug cannot be null."
+            )
+
+        return validate_canonical_slug(
+            value
+        )
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(
+        cls,
+        value: str | None,
+    ) -> str:
+        if value is None:
+            raise ValueError(
+                "Store name cannot be null."
+            )
+
+        return validate_store_name(value)
 
 
 class StoreResponse(BaseModel):
@@ -54,8 +109,9 @@ class StoreResponse(BaseModel):
     created_at: datetime
     updated_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes=True
+    )
 
 
 class StorePublicResponse(BaseModel):
@@ -67,5 +123,8 @@ class StorePublicResponse(BaseModel):
     logo_url: str | None = None
     banner_url: str | None = None
     category: str | None = None
+    can_receive_online_payments: bool = False
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True
+    )

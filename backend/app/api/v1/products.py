@@ -29,6 +29,44 @@ async def lock_store_for_product_limit(db: AsyncSession, store: Store) -> Store:
     return locked_store
 
 
+async def ensure_published_store_keeps_active_product(
+    db: AsyncSession,
+    store: Store,
+) -> None:
+    publication_status = (
+        store.publication_status
+        or "draft"
+    ).lower().strip()
+
+    if publication_status != "published":
+        return
+
+    active_count_result = await db.execute(
+        select(
+            func.count(Product.id)
+        ).where(
+            Product.store_id == store.id,
+            Product.is_active.is_(True),
+        )
+    )
+
+    active_product_count = (
+        active_count_result.scalar_one()
+    )
+
+    if active_product_count <= 1:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "A published store must keep at "
+                "least one active product. "
+                "Unpublish the store before "
+                "deactivating its last active "
+                "product."
+            ),
+        )
+
+
 @router.get("/stores/{store_id}/products", response_model=list[ProductResponse])
 async def list_products(
     store: Store = Depends(require_store_owner),
@@ -110,18 +148,43 @@ async def update_product(
     store: Store = Depends(require_store_owner),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(Product).where(
-            Product.id == product_id,
-            Product.store_id == store.id,
-        )
+    update_data = payload.model_dump(
+        exclude_unset=True
     )
+
+    changes_active_state = (
+        "is_active" in update_data
+    )
+
+    if changes_active_state:
+        store = (
+            await lock_store_for_product_limit(
+                db,
+                store,
+            )
+        )
+
+    product_query = select(Product).where(
+        Product.id == product_id,
+        Product.store_id == store.id,
+    )
+
+    if changes_active_state:
+        product_query = (
+            product_query.with_for_update()
+        )
+
+    result = await db.execute(
+        product_query
+    )
+
     product = result.scalar_one_or_none()
 
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    update_data = payload.model_dump(exclude_unset=True)
+        raise HTTPException(
+            status_code=404,
+            detail="Product not found",
+        )
 
     if "slug" in update_data:
         existing_result = await db.execute(
@@ -139,7 +202,15 @@ async def update_product(
                 detail="Another product with this slug already exists",
             )
 
-    is_being_activated = update_data.get("is_active") is True and not product.is_active
+    is_being_activated = (
+        update_data.get("is_active") is True
+        and not product.is_active
+    )
+
+    is_being_deactivated = (
+        update_data.get("is_active") is False
+        and product.is_active
+    )
 
     if is_being_activated:
         plan_limit = await get_product_limit_for_store(db, store)
@@ -157,8 +228,19 @@ async def update_product(
             if active_product_count >= plan_limit:
                 raise HTTPException(
                     status_code=403,
-                    detail=get_product_limit_message(store.plan_name, plan_limit),
+                    detail=get_product_limit_message(
+                        store.plan_name,
+                        plan_limit,
+                    ),
                 )
+
+    if is_being_deactivated:
+        await (
+            ensure_published_store_keeps_active_product(
+                db,
+                store,
+            )
+        )
 
     for key, value in update_data.items():
         setattr(product, key, value)
@@ -175,16 +257,35 @@ async def delete_product(
     store: Store = Depends(require_store_owner),
     db: AsyncSession = Depends(get_db),
 ):
+    store = await lock_store_for_product_limit(
+        db,
+        store,
+    )
+
     result = await db.execute(
-        select(Product).where(
+        select(Product)
+        .where(
             Product.id == product_id,
             Product.store_id == store.id,
         )
+        .with_for_update()
     )
+
     product = result.scalar_one_or_none()
 
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Product not found",
+        )
+
+    if product.is_active:
+        await (
+            ensure_published_store_keeps_active_product(
+                db,
+                store,
+            )
+        )
 
     product.is_active = False
 

@@ -1540,3 +1540,141 @@ button {
   }
 }
 
+/* === STOREPLUG LAUNCH STOREFRONT CLEANUP === */
+
+.store-banner-empty {
+  height: 180px !important;
+  min-height: 0 !important;
+}
+
+.section-head > span {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.45rem 0.75rem;
+  background: #eef2f7;
+  color: #475569;
+  font-size: 0.86rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.order-product-card {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 24px;
+}
+
+.order-product-card .product-image,
+.order-product-card .safe-product-placeholder {
+  width: 100% !important;
+  height: 220px !important;
+  min-height: 220px !important;
+  max-height: 220px !important;
+  border-radius: 24px !important;
+  object-fit: cover !important;
+}
+
+.order-form-complete {
+  align-content: start;
+}
+
+.order-form-complete .form-muted {
+  margin-top: -0.25rem;
+}
+
+.order-success-box {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1.1rem !important;
+}
+
+.order-success-box p {
+  margin: 0;
+}
+
+.order-success-label {
+  color: #15803d;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.order-success-number {
+  color: #14532d;
+  font-size: 1.35rem;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.order-success-box .inline-link {
+  width: 100%;
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.25rem;
+  border-radius: 999px;
+  background: #166534;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.not-found-card .btn {
+  min-width: 160px;
+}
+
+@media (max-width: 600px) {
+  .store-banner-empty {
+    height: 104px !important;
+    min-height: 0 !important;
+  }
+
+  .store-profile-card {
+    margin-top: -36px !important;
+  }
+
+  .store-profile-card h1 {
+    font-size: clamp(
+      1.9rem,
+      9vw,
+      2.45rem
+    ) !important;
+  }
+
+  .section-head {
+    display: flex !important;
+    align-items: flex-end !important;
+    justify-content: space-between !important;
+    flex-direction: row !important;
+    gap: 0.75rem !important;
+  }
+
+  .section-head > span {
+    flex: 0 0 auto;
+    font-size: 0.8rem;
+  }
+
+  .order-product-card .product-image,
+  .order-product-card .safe-product-placeholder {
+    height: 190px !important;
+    min-height: 190px !important;
+    max-height: 190px !important;
+    border-radius: 22px !important;
+  }
+
+  .order-form-complete {
+    padding: 1rem !important;
+  }
+
+  .order-success-number {
+    font-size: 1.18rem;
+  }
+
+  .not-found-card {
+    width: 100%;
+  }
+}

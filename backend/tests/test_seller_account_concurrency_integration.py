@@ -29,7 +29,7 @@ from app.schemas.seller import (
 )
 
 
-EXPECTED_ALEMBIC_HEAD = "b8d1f3a5c7e9"
+EXPECTED_ALEMBIC_HEAD = "e3a5c7d9f1b2"
 
 
 class StartGate:

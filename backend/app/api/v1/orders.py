@@ -1,7 +1,16 @@
+import hmac
 from decimal import Decimal
+from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    Request,
+    Response,
+)
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,8 +18,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import require_store_owner
 from app.db.session import get_db
 from app.models import Store, Product, Order, OrderItem
-from app.schemas.order import PublicOrderCreate, OrderResponse, OrderStatusUpdate
+from app.schemas.order import (
+    OrderResponse,
+    OrderStatusUpdate,
+    PublicOrderCreate,
+    PublicOrderTrackingResponse,
+    PublicOrderTrackRequest,
+)
 from app.services.subscription import get_store_access_error
+from app.services.store_publication import is_store_published
+from app.services.order_tracking import (
+    PUBLIC_NO_STORE_HEADERS,
+    apply_public_no_store_headers,
+    normalize_customer_phone,
+)
+from app.services.order_tracking_rate_limit import (
+    enforce_order_tracking_rate_limit,
+)
+from app.services.order_idempotency import (
+    acquire_order_idempotency_lock,
+    build_order_request_fingerprint,
+    normalize_order_idempotency_key,
+)
 
 
 router = APIRouter(tags=["orders"])
@@ -52,22 +81,121 @@ def generate_order_number() -> str:
     return f"ORD-{uuid4().hex[:10].upper()}"
 
 
-@router.post("/public/orders", response_model=OrderResponse)
-async def create_public_order(payload: PublicOrderCreate, db: AsyncSession = Depends(get_db)):
-    store_result = await db.execute(
-        select(Store).where(Store.slug == payload.store_slug)
+@router.post(
+    "/public/orders",
+    response_model=OrderResponse,
+)
+async def create_public_order(
+    payload: PublicOrderCreate,
+    idempotency_key: Annotated[
+        str | None,
+        Header(alias="Idempotency-Key"),
+    ] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        normalized_idempotency_key = (
+            normalize_order_idempotency_key(
+                idempotency_key
+            )
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
+
+    request_fingerprint = (
+        build_order_request_fingerprint(
+            payload.model_dump(
+                mode="json"
+            )
+        )
     )
+
+    store_result = await db.execute(
+        select(Store)
+        .where(
+            Store.slug == payload.store_slug
+        )
+        .with_for_update(read=True)
+    )
+
     store = store_result.scalar_one_or_none()
 
     if not store:
-        raise HTTPException(status_code=404, detail="Store not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Store not found",
+        )
 
-    access_error = get_store_access_error(store)
+    # Serialize requests only when the same
+    # store and idempotency key are reused.
+    await acquire_order_idempotency_lock(
+        db,
+        store.id,
+        normalized_idempotency_key,
+    )
+
+    existing_result = await db.execute(
+        select(Order)
+        .options(
+            selectinload(Order.items)
+        )
+        .where(
+            Order.store_id == store.id,
+            Order.idempotency_key
+            == normalized_idempotency_key,
+        )
+    )
+
+    existing_order = (
+        existing_result.scalar_one_or_none()
+    )
+
+    if existing_order is not None:
+        existing_fingerprint = (
+            existing_order.request_fingerprint
+            or ""
+        )
+
+        if not hmac.compare_digest(
+            existing_fingerprint,
+            request_fingerprint,
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This Idempotency-Key was "
+                    "already used with different "
+                    "order details."
+                ),
+            )
+
+        return existing_order
+
+    if not is_store_published(store):
+        # New orders remain concealed when the
+        # storefront is not published.
+        raise HTTPException(
+            status_code=404,
+            detail="Store not found",
+        )
+
+    access_error = get_store_access_error(
+        store
+    )
 
     if access_error:
-        raise HTTPException(status_code=403, detail=access_error)
+        raise HTTPException(
+            status_code=403,
+            detail=access_error,
+        )
 
-    product_ids = [item.product_id for item in payload.items]
+    product_ids = [
+        item.product_id
+        for item in payload.items
+    ]
 
     products_result = await db.execute(
         select(Product).where(
@@ -77,24 +205,48 @@ async def create_public_order(payload: PublicOrderCreate, db: AsyncSession = Dep
         )
     )
 
-    products = {product.id: product for product in products_result.scalars().all()}
+    products = {
+        product.id: product
+        for product
+        in products_result.scalars().all()
+    }
 
     prepared_items = []
     subtotal = Decimal("0.00")
 
     for item in payload.items:
-        product = products.get(item.product_id)
+        product = products.get(
+            item.product_id
+        )
 
         if not product:
-            raise HTTPException(status_code=400, detail=f"Product not available: {item.product_id}")
-
-        if product.stock_quantity is not None and item.quantity > product.stock_quantity:
             raise HTTPException(
                 status_code=400,
-                detail=f"Only {product.stock_quantity} left in stock for {product.name}",
+                detail=(
+                    "Product not available: "
+                    f"{item.product_id}"
+                ),
             )
 
-        line_total = product.price * item.quantity
+        if (
+            product.stock_quantity is not None
+            and item.quantity
+            > product.stock_quantity
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Only "
+                    f"{product.stock_quantity} "
+                    f"left in stock for "
+                    f"{product.name}"
+                ),
+            )
+
+        line_total = (
+            product.price * item.quantity
+        )
+
         subtotal += line_total
 
         prepared_items.append(
@@ -108,11 +260,19 @@ async def create_public_order(payload: PublicOrderCreate, db: AsyncSession = Dep
     order = Order(
         store_id=store.id,
         order_number=generate_order_number(),
+        idempotency_key=(
+            normalized_idempotency_key
+        ),
+        request_fingerprint=(
+            request_fingerprint
+        ),
         status="pending",
         customer_name=payload.customer_name,
         customer_phone=payload.customer_phone,
         customer_email=payload.customer_email,
-        delivery_address=payload.delivery_address,
+        delivery_address=(
+            payload.delivery_address
+        ),
         customer_note=payload.customer_note,
         subtotal=subtotal,
         delivery_fee=Decimal("0.00"),
@@ -143,7 +303,9 @@ async def create_public_order(payload: PublicOrderCreate, db: AsyncSession = Dep
 
     result = await db.execute(
         select(Order)
-        .options(selectinload(Order.items))
+        .options(
+            selectinload(Order.items)
+        )
         .where(Order.id == order.id)
     )
 
@@ -151,34 +313,86 @@ async def create_public_order(payload: PublicOrderCreate, db: AsyncSession = Dep
 
 
 
-@router.get("/public/orders/{order_number}", response_model=OrderResponse)
-async def get_public_order_status(
-    order_number: str,
-    customer_phone: str,
+@router.post(
+    "/public/orders/track",
+    response_model=(
+        PublicOrderTrackingResponse
+    ),
+)
+async def track_public_order(
+    payload: PublicOrderTrackRequest,
+    request: Request,
+    response: Response,
     db: AsyncSession = Depends(get_db),
-):
+) -> PublicOrderTrackingResponse:
+    apply_public_no_store_headers(
+        response
+    )
+
+    await enforce_order_tracking_rate_limit(
+        request
+    )
+
     result = await db.execute(
         select(Order, Store.slug)
-        .join(Store, Store.id == Order.store_id)
-        .options(selectinload(Order.items))
+        .join(
+            Store,
+            Store.id == Order.store_id,
+        )
+        .options(
+            selectinload(Order.items)
+        )
         .where(
-            Order.order_number == order_number,
-            Order.customer_phone == customer_phone,
+            Order.order_number
+            == payload.order_number
         )
     )
 
     row = result.first()
 
-    if not row:
+    if row is None:
         raise HTTPException(
             status_code=404,
-            detail="Order not found. Please check your order number and phone number.",
+            detail=(
+                "Order not found. Check the "
+                "order number and phone number."
+            ),
+            headers=PUBLIC_NO_STORE_HEADERS,
         )
 
     order, store_slug = row
-    setattr(order, "store_slug", store_slug)
 
-    return order
+    try:
+        stored_phone = (
+            normalize_customer_phone(
+                order.customer_phone
+            )
+        )
+    except (TypeError, ValueError):
+        stored_phone = ""
+
+    if not hmac.compare_digest(
+        stored_phone,
+        payload.customer_phone,
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Order not found. Check the "
+                "order number and phone number."
+            ),
+            headers=PUBLIC_NO_STORE_HEADERS,
+        )
+
+    return PublicOrderTrackingResponse(
+        order_number=order.order_number,
+        store_slug=store_slug,
+        status=order.status,
+        total=order.total,
+        currency=order.currency,
+        items=order.items,
+        created_at=order.created_at,
+    )
 
 @router.get("/stores/{store_id}/orders/", response_model=list[OrderResponse])
 async def list_store_orders(

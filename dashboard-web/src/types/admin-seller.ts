@@ -19,7 +19,9 @@ export type AdminSellerStoreSummary = {
   id: string;
   name: string;
   slug: string;
-  publication_status: string;
+  publication_status:
+    | "draft"
+    | "published";
   is_active: boolean;
   is_suspended: boolean;
   plan_name: string;
@@ -28,6 +30,7 @@ export type AdminSellerStoreSummary = {
   trial_ends_at: string | null;
   subscription_ends_at: string | null;
   created_at: string;
+  updated_at: string;
 };
 
 export type AdminSellerInvitationSummary = {

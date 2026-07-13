@@ -8,6 +8,7 @@ import type {
   AdminSellerAccountActionResponse,
   AdminSellerDetailResponse,
   AdminSellerInvitationRegenerateResponse,
+  AdminSellerStoreSummary,
   AdminSellerOnboardingCancelResponse,
 } from "../types/admin-seller";
 
@@ -30,6 +31,8 @@ type BusyAction =
   | "reactivate"
   | "regenerate"
   | "cancel"
+  | "publish"
+  | "unpublish"
   | null;
 
 
@@ -209,6 +212,11 @@ export function AdminSellerDetailPage({
   ] = useState<BusyAction>(null);
 
   const [
+    publicationStoreId,
+    setPublicationStoreId,
+  ] = useState<string | null>(null);
+
+  const [
     actionReason,
     setActionReason,
   ] = useState("");
@@ -352,6 +360,100 @@ export function AdminSellerDetailPage({
       setBusyAction(null);
     }
   }
+
+  async function performPublicationAction(
+    store: AdminSellerStoreSummary,
+    action: "publish" | "unpublish",
+  ) {
+    if (!seller || busyAction) {
+      return;
+    }
+
+    if (
+      action === "publish" &&
+      seller.setup_status !== "completed"
+    ) {
+      setActionError(
+        "The seller must accept the invitation and complete account setup before the store can be published.",
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      action === "publish"
+        ? `Publish ${store.name}? The storefront will become public and customers can place orders immediately.`
+        : `Unpublish ${store.name}? The public storefront and all new order creation will be blocked immediately.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setBusyAction(action);
+    setPublicationStoreId(store.id);
+    setActionError("");
+    setActionMessage("");
+
+    try {
+      const response =
+        await requestRef.current(
+          `/admin/stores/${store.id}/${action}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body: JSON.stringify({
+              expected_updated_at:
+                store.updated_at,
+            }),
+          },
+        ) as AdminSellerStoreSummary;
+
+      setSeller((current) => {
+        if (!current) {
+          return current;
+        }
+
+        return {
+          ...current,
+          stores: current.stores.map(
+            (currentStore) =>
+              currentStore.id === store.id
+                ? {
+                    ...currentStore,
+                    publication_status:
+                      response
+                        .publication_status,
+                    updated_at:
+                      response.updated_at,
+                  }
+                : currentStore,
+          ),
+        };
+      });
+
+      setActionMessage(
+        response.publication_status ===
+        "published"
+          ? `${store.name} is now live. Customers can visit /${store.slug} and place orders.`
+          : `${store.name} has been unpublished. Its products and settings were retained.`,
+      );
+
+      syncSellerList();
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : `Could not ${action} the store.`,
+      );
+    } finally {
+      setBusyAction(null);
+      setPublicationStoreId(null);
+    }
+  }
+
 
   async function regenerateInvitation() {
     if (
@@ -740,7 +842,7 @@ export function AdminSellerDetailPage({
           className="seller-detail-alert success"
           role="status"
         >
-          <strong>Account updated</strong>
+          <strong>Update complete</strong>
           <span>{actionMessage}</span>
         </div>
       )}
@@ -1164,6 +1266,69 @@ export function AdminSellerDetailPage({
                         )}
                       </strong>
                     </div>
+                  </div>
+
+                  <div className="seller-store-publication">
+                    <div>
+                      <strong>
+                        {store.publication_status ===
+                        "published"
+                          ? "Store is live"
+                          : "Store is not public"}
+                      </strong>
+
+                      <p>
+                        {store.publication_status ===
+                        "published"
+                          ? "Customers can view this storefront and create new orders."
+                          : seller.setup_status !==
+                              "completed"
+                            ? "The seller must complete invitation setup before publishing."
+                            : "Publishing requires a valid trial or subscription and at least one active product."}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      className={
+                        store.publication_status ===
+                        "published"
+                          ? "seller-secondary-button"
+                          : "seller-primary-button"
+                      }
+                      onClick={() =>
+                        void performPublicationAction(
+                          store,
+                          store.publication_status ===
+                          "published"
+                            ? "unpublish"
+                            : "publish",
+                        )
+                      }
+                      disabled={
+                        busyAction !== null ||
+                        (
+                          store.publication_status !==
+                            "published" &&
+                          seller.setup_status !==
+                            "completed"
+                        )
+                      }
+                    >
+                      {publicationStoreId ===
+                        store.id &&
+                      busyAction === "publish"
+                        ? "Publishing..."
+                        : publicationStoreId ===
+                              store.id &&
+                            busyAction ===
+                              "unpublish"
+                          ? "Unpublishing..."
+                          : store.publication_status ===
+                              "published"
+                            ? "Unpublish store"
+                            : "Publish store"}
+                    </button>
                   </div>
                 </article>
               ))}

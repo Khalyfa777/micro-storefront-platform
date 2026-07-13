@@ -201,7 +201,7 @@ export function StoreProfilePage({
           <input
             value={storeForm.name}
             onChange={(e) => setStoreForm((prev: StoreForm) => ({ ...prev, name: e.target.value }))}
-            placeholder="THE GAME Store"
+            placeholder="e.g. Accra Style Hub"
             required
           />
         </label>
@@ -216,7 +216,7 @@ export function StoreProfilePage({
                 slug: makeSlug(e.target.value),
               }))
             }
-            placeholder="thegame"
+            placeholder="e.g. accra-style-hub"
             required
           />
         </label>
@@ -226,7 +226,7 @@ export function StoreProfilePage({
           <textarea
             value={storeForm.bio}
             onChange={(e) => setStoreForm((prev: StoreForm) => ({ ...prev, bio: e.target.value }))}
-            placeholder="Tell customers what your store sells."
+            placeholder="e.g. Fashion, accessories, and everyday essentials."
           />
         </label>
 
@@ -240,7 +240,7 @@ export function StoreProfilePage({
                 whatsapp_number: e.target.value,
               }))
             }
-            placeholder="233544193559"
+            placeholder="e.g. 233 24 123 4567"
           />
         </label>
 

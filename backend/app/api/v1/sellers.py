@@ -837,6 +837,7 @@ async def list_admin_sellers(
                     store.subscription_ends_at
                 ),
                 created_at=store.created_at,
+                updated_at=store.updated_at,
             )
             for store in seller_stores
         ]
