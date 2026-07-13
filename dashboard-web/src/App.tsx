@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { LoginPage } from "./pages/LoginPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { ProductsPage } from "./pages/ProductsPage";
@@ -144,20 +144,66 @@ function formatMonthlyFee(value?: string | number | null) {
 
   return `GHS ${Number(value).toFixed(2)}`;
 }
-function getApiErrorMessage(data: any, fallback: string) {
-  const detail = data?.detail;
+type ApiErrorPayload = {
+  detail?: unknown;
+};
 
-  if (!detail) return fallback;
+function getApiErrorMessage(
+  data: unknown,
+  fallback: string,
+) {
+  if (
+    !data
+    || typeof data !== "object"
+    || !("detail" in data)
+  ) {
+    return fallback;
+  }
 
-  if (typeof detail === "string") return detail;
+  const detail = (
+    data as ApiErrorPayload
+  ).detail;
+
+  if (!detail) {
+    return fallback;
+  }
+
+  if (typeof detail === "string") {
+    return detail;
+  }
 
   if (Array.isArray(detail)) {
     return detail
-      .map((item) => item?.msg || item?.message || JSON.stringify(item))
+      .map((item) => {
+        if (
+          item
+          && typeof item === "object"
+        ) {
+          const candidate = item as {
+            msg?: unknown;
+            message?: unknown;
+          };
+
+          if (
+            typeof candidate.msg === "string"
+          ) {
+            return candidate.msg;
+          }
+
+          if (
+            typeof candidate.message
+            === "string"
+          ) {
+            return candidate.message;
+          }
+        }
+
+        return JSON.stringify(item);
+      })
       .join(", ");
   }
 
-  return JSON.stringify(detail);
+  return JSON.stringify(detail) || fallback;
 }
 const PUBLIC_STORE_URL = import.meta.env.VITE_PUBLIC_STORE_URL || "http://localhost:3000";
 const SUPPORT_WHATSAPP_NUMBER = import.meta.env.VITE_SUPPORT_WHATSAPP || "233544193559";
@@ -1886,155 +1932,233 @@ try {
       );
 
       setMessage("Store settings updated.");
-
-            {selectedStore && (
-              <div className="subscription-summary-card">
-                <div>
-                  <span>Current plan</span>
-                  <strong>{formatPlanName(selectedStore.plan_name)}</strong>
-                </div>
-
-                <div>
-                  <span>Status</span>
-                  <strong className={`subscription-status ${selectedStore.subscription_status || "trial"}`}>
-                    {formatPlanName(selectedStore.subscription_status)}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>Monthly fee</span>
-                  <strong>{formatMonthlyFee(selectedStore.monthly_fee)}</strong>
-                </div>
-
-                <div>
-                  <span>Expires</span>
-                  <strong>{formatSubscriptionDate(selectedStore.subscription_ends_at)}</strong>
-                </div>
-
-                <div>
-                  <span>Time left</span>
-                  <strong
-                    className={`subscription-time ${getSubscriptionTimeClass(
-                      selectedStore.subscription_status,
-                      selectedStore.subscription_ends_at,
-                      selectedStore.is_suspended
-                    )}`}
-                  >
-                    {getSubscriptionTimeLabel(
-                      selectedStore.subscription_status,
-                      selectedStore.subscription_ends_at,
-                      selectedStore.is_suspended
-                    )}
-                  </strong>
-                </div>
-              </div>
-            )}
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update store settings");
     }
   }
 
 
-  // AUTO LOAD SUBSCRIPTION USAGE
-  useEffect(() => {
-    if (!selectedStore?.id) {
-      setSubscriptionUsage(null);
-      return;
-    }
+  const runSubscriptionUsageAutoLoad =
+    useEffectEvent(
+      (storeId: string | null) => {
+        if (!storeId) {
+          setSubscriptionUsage(null);
+          return;
+        }
 
-    loadSubscriptionUsage(selectedStore.id).catch((err) =>
-      setError(err instanceof Error ? err.message : "Could not load subscription usage")
+        void loadSubscriptionUsage(
+          storeId,
+        ).catch((loadError) =>
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : (
+                  "Could not load "
+                  + "subscription usage"
+                ),
+          ),
+        );
+      },
     );
-  }, [selectedStore?.id]);
-  useEffect(() => {
-    if (token) {
-      loadStores().catch((err) =>
-        setError(err instanceof Error ? err.message : "Could not load stores")
-      );
-    }
-  }, [token]);
 
-  useEffect(() => {
-    if (selectedStore) {
+  const runStoreListAutoLoad =
+    useEffectEvent(() => {
+      void loadStores().catch(
+        (loadError) =>
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Could not load stores",
+          ),
+      );
+    });
+
+  const runSelectedStoreAutoLoad =
+    useEffectEvent(() => {
+      if (!selectedStore) {
+        return;
+      }
+
       setStoreForm({
         name: selectedStore.name || "",
         slug: selectedStore.slug || "",
         bio: selectedStore.bio || "",
-        whatsapp_number: selectedStore.whatsapp_number || "",
-        logo_url: selectedStore.logo_url || "",
-        banner_url: selectedStore.banner_url || "",
-        category: selectedStore.category || "",
+        whatsapp_number:
+          selectedStore.whatsapp_number || "",
+        logo_url:
+          selectedStore.logo_url || "",
+        banner_url:
+          selectedStore.banner_url || "",
+        category:
+          selectedStore.category || "",
       });
 
-      loadOrders(selectedStore.id).catch((err) =>
-        setError(err instanceof Error ? err.message : "Could not load orders")
+      void loadOrders(
+        selectedStore.id,
+      ).catch((loadError) =>
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Could not load orders",
+        ),
       );
 
-      loadProducts(selectedStore.id).catch((err) =>
-        setError(err instanceof Error ? err.message : "Could not load products")
+      void loadProducts(
+        selectedStore.id,
+      ).catch((loadError) =>
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Could not load products",
+        ),
       );
-    }
+    });
+
+  const runAdminTabAutoLoad =
+    useEffectEvent(
+      (tab: DashboardTab) => {
+        if (tab === "adminSummary") {
+          void loadAdminSubscriptionSummary()
+            .catch((loadError) =>
+              setError(
+                loadError instanceof Error
+                  ? loadError.message
+                  : (
+                      "Could not load "
+                      + "subscription summary"
+                    ),
+              ),
+            );
+
+          return;
+        }
+
+        if (tab === "adminSellers") {
+          void loadAdminSellers().catch(
+            (loadError) =>
+              setAdminSellerListError(
+                loadError instanceof Error
+                  ? loadError.message
+                  : (
+                      "Could not load "
+                      + "seller accounts"
+                    ),
+              ),
+          );
+
+          void loadSubscriptionPlans()
+            .catch((loadError) =>
+              setError(
+                loadError instanceof Error
+                  ? loadError.message
+                  : (
+                      "Could not load "
+                      + "subscription plans"
+                    ),
+              ),
+            );
+
+          return;
+        }
+
+        if (tab === "adminPlans") {
+          void loadSubscriptionPlans()
+            .catch((loadError) =>
+              setError(
+                loadError instanceof Error
+                  ? loadError.message
+                  : (
+                      "Could not load "
+                      + "subscription plans"
+                    ),
+              ),
+            );
+
+          return;
+        }
+
+        if (tab === "adminPayments") {
+          void loadAdminSubscriptionPayments()
+            .catch((loadError) =>
+              setError(
+                loadError instanceof Error
+                  ? loadError.message
+                  : (
+                      "Could not load "
+                      + "subscription payments"
+                    ),
+              ),
+            );
+        }
+      },
+    );
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(
+      () => {
+        runSubscriptionUsageAutoLoad(
+          selectedStore?.id ?? null,
+        );
+      },
+      0,
+    );
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [selectedStore?.id]);
 
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(
+      () => {
+        runStoreListAutoLoad();
+      },
+      0,
+    );
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [token]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(
+      () => {
+        runSelectedStoreAutoLoad();
+      },
+      0,
+    );
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [selectedStore?.id]);
 
   useEffect(() => {
     if (!token || !isPlatformAdmin) {
       return;
     }
 
-    if (activeTab === "adminSummary") {
-      loadAdminSubscriptionSummary().catch(
-        (loadError) =>
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Could not load subscription summary",
-          ),
-      );
-    }
+    const timeoutId = window.setTimeout(
+      () => {
+        runAdminTabAutoLoad(activeTab);
+      },
+      0,
+    );
 
-    if (activeTab === "adminSellers") {
-      loadAdminSellers().catch(
-        (loadError) =>
-          setAdminSellerListError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Could not load seller accounts",
-          ),
-      );
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    token,
+    isPlatformAdmin,
+    activeTab,
+  ]);
 
-      loadSubscriptionPlans().catch(
-        (loadError) =>
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Could not load subscription plans",
-          ),
-      );
-    }
-
-    if (activeTab === "adminPlans") {
-      loadSubscriptionPlans().catch(
-        (loadError) =>
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Could not load subscription plans",
-          ),
-      );
-    }
-
-    if (activeTab === "adminPayments") {
-      loadAdminSubscriptionPayments().catch(
-        (loadError) =>
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Could not load subscription payments",
-          ),
-      );
-    }
-  }, [token, isPlatformAdmin, activeTab]);
   const filteredAdminStores = adminStores.filter((store) => {
     const computedStatus = getComputedSubscriptionStatus(
       store.subscription_status,
@@ -2244,15 +2368,17 @@ try {
         {activeTab === "orders" && (
           <OrdersPage
             orders={orders}
-            getAllowedOrderStatusActions={(status) =>
-              getAllowedOrderStatusActions(status as any) as string[]
+            getAllowedOrderStatusActions={
+              getAllowedOrderStatusActions
             }
-            formatOrderStatusActionLabel={(status) =>
-              formatOrderStatusActionLabel(status as any)
+            formatOrderStatusActionLabel={
+              formatOrderStatusActionLabel
             }
-            confirmManualPayment={confirmManualPayment}
-            updateOrderStatus={(orderId, nextStatus) =>
-              updateOrderStatus(orderId, nextStatus as any)
+            confirmManualPayment={
+              confirmManualPayment
+            }
+            updateOrderStatus={
+              updateOrderStatus
             }
           />
         )}

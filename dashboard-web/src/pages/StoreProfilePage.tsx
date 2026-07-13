@@ -1,4 +1,8 @@
-import type { FormEvent } from "react";
+import type {
+  Dispatch,
+  FormEvent,
+  SetStateAction,
+} from "react";
 
 type StoreForm = {
   name: string;
@@ -10,27 +14,75 @@ type StoreForm = {
   category: string;
 };
 
+type StoreSummary = {
+  plan_name?: string | null;
+  subscription_status?: string | null;
+  monthly_fee?: string | number | null;
+  subscription_ends_at?: string | null;
+  is_suspended?: boolean | null;
+};
+
+type StoreSubscriptionUsage = {
+  plan_name: string;
+  display_name: string;
+  monthly_fee: string | number;
+  product_limit?: number | null;
+  active_products: number;
+  remaining_products?: number | null;
+  is_unlimited: boolean;
+  can_upload_images: boolean;
+  can_use_custom_domain: boolean;
+  can_receive_online_payments: boolean;
+  plan_is_active: boolean;
+};
+
 type StoreProfilePageProps = {
-  selectedStore: any;
+  selectedStore: StoreSummary | null;
   storeForm: StoreForm;
-  setStoreForm: any;
-  subscriptionUsage: any;
+  setStoreForm:
+    Dispatch<SetStateAction<StoreForm>>;
+  subscriptionUsage:
+    StoreSubscriptionUsage | null;
   loadingSubscriptionUsage: boolean;
-  saveStoreSettings: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
+  saveStoreSettings:
+    (
+      event: FormEvent<HTMLFormElement>
+    ) => void | Promise<void>;
   makeSlug: (value: string) => string;
-  uploadStoreImage: (file: File, type: "logo" | "banner") => void | Promise<void>;
-  formatPlanName: (value?: string | null) => string;
+  uploadStoreImage:
+    (
+      file: File,
+      type: "logo" | "banner",
+    ) => void | Promise<void>;
+  formatPlanName:
+    (value?: string | null) => string;
   getComputedSubscriptionStatus: (
     status?: string | null,
     endsAt?: string | null,
-    isSuspended?: boolean
+    isSuspended?: boolean | null,
   ) => string;
-  formatMonthlyFee: (value?: string | number | null) => string;
-  formatSubscriptionDate: (value?: string | null) => string;
-  formatProductUsageLabel: (usage?: any) => string;
-  getProductUsageClass: (usage?: any) => string;
-  getProductUsagePercent: (usage?: any) => number;
-  formatRemainingProducts: (usage?: any) => string;
+  formatMonthlyFee:
+    (
+      value?: string | number | null
+    ) => string;
+  formatSubscriptionDate:
+    (value?: string | null) => string;
+  formatProductUsageLabel:
+    (
+      usage?: StoreSubscriptionUsage | null
+    ) => string;
+  getProductUsageClass:
+    (
+      usage?: StoreSubscriptionUsage | null
+    ) => string;
+  getProductUsagePercent:
+    (
+      usage?: StoreSubscriptionUsage | null
+    ) => number;
+  formatRemainingProducts:
+    (
+      usage?: StoreSubscriptionUsage | null
+    ) => string;
 };
 
 export function StoreProfilePage({

@@ -1,15 +1,51 @@
+type SubscriptionPaymentMethodFilter =
+  | "all"
+  | "manual"
+  | "momo"
+  | "bank"
+  | "cash"
+  | "paystack";
+
+type AdminSubscriptionPaymentItem = {
+  id: string;
+  store_id: string;
+  store_name: string;
+  store_slug: string;
+  plan_name: string;
+  amount: string | number;
+  currency: string;
+  payment_method: string;
+  payment_reference?: string | null;
+  note?: string | null;
+  covered_days: number;
+  approved_by_email?: string | null;
+  paid_at: string;
+  created_at: string;
+};
+
 type AdminPaymentsPageProps = {
-  adminSubscriptionPayments: any[];
-  filteredSubscriptionPayments: any[];
+  adminSubscriptionPayments:
+    AdminSubscriptionPaymentItem[];
+  filteredSubscriptionPayments:
+    AdminSubscriptionPaymentItem[];
   subscriptionPaymentSearch: string;
-  setSubscriptionPaymentSearch: (value: string) => void;
-  subscriptionPaymentMethodFilter: string;
-  setSubscriptionPaymentMethodFilter: (value: any) => void;
-  loadAdminSubscriptionPayments: () => void | Promise<void>;
+  setSubscriptionPaymentSearch:
+    (value: string) => void;
+  subscriptionPaymentMethodFilter:
+    SubscriptionPaymentMethodFilter;
+  setSubscriptionPaymentMethodFilter:
+    (
+      value: SubscriptionPaymentMethodFilter
+    ) => void;
+  loadAdminSubscriptionPayments:
+    () => void | Promise<void>;
   loadingAdminSubscriptionPayments: boolean;
-  exportSubscriptionPaymentsCsv: () => void;
-  formatPlanName: (value?: string | null) => string;
-  formatSubscriptionDate: (value?: string | null) => string;
+  exportSubscriptionPaymentsCsv:
+    () => void;
+  formatPlanName:
+    (value?: string | null) => string;
+  formatSubscriptionDate:
+    (value?: string | null) => string;
 };
 
 export function AdminPaymentsPage({

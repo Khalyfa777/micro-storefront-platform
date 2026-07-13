@@ -1,10 +1,36 @@
+type AdminSubscriptionPlanItem = {
+  id: string;
+  name: string;
+};
+
+type SubscriptionPlanDraft = {
+  display_name: string;
+  monthly_fee: string;
+  product_limit: string;
+  can_upload_images: boolean;
+  can_use_custom_domain: boolean;
+  can_receive_online_payments: boolean;
+  is_active: boolean;
+};
+
+type SubscriptionPlanDraftField =
+  keyof SubscriptionPlanDraft;
+
 type AdminPlansPageProps = {
-  subscriptionPlans: any[];
-  planDrafts: Record<string, any>;
+  subscriptionPlans:
+    AdminSubscriptionPlanItem[];
+  planDrafts:
+    Record<string, SubscriptionPlanDraft>;
   loadingSubscriptionPlans: boolean;
-  loadSubscriptionPlans: () => void | Promise<void>;
-  updatePlanDraft: (planName: string, field: string, value: string | boolean) => void;
-  saveSubscriptionPlan: (planName: string) => void | Promise<void>;
+  loadSubscriptionPlans:
+    () => void | Promise<void>;
+  updatePlanDraft: (
+    planName: string,
+    field: SubscriptionPlanDraftField,
+    value: string | boolean,
+  ) => void;
+  saveSubscriptionPlan:
+    (planName: string) => void | Promise<void>;
 };
 
 export function AdminPlansPage({

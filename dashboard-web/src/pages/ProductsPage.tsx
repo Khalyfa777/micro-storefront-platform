@@ -1,8 +1,44 @@
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 
-type Product = any;
-type ProductForm = any;
-type StoreSubscriptionUsage = any;
+type Product = {
+  id: string;
+  store_id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  image_url?: string | null;
+  product_type: string;
+  price: string;
+  stock_quantity?: number | null;
+  is_active: boolean;
+  is_featured: boolean;
+};
+
+type ProductForm = {
+  name: string;
+  slug: string;
+  description: string;
+  image_url: string;
+  product_type: string;
+  price: string;
+  stock_quantity: string;
+  is_active: boolean;
+  is_featured: boolean;
+};
+
+type StoreSubscriptionUsage = {
+  plan_name: string;
+  display_name: string;
+  monthly_fee: string | number;
+  product_limit?: number | null;
+  active_products: number;
+  remaining_products?: number | null;
+  is_unlimited: boolean;
+  can_upload_images: boolean;
+  can_use_custom_domain: boolean;
+  can_receive_online_payments: boolean;
+  plan_is_active: boolean;
+};
 
 type ProductsPageProps = {
   products: Product[];
