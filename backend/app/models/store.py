@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from sqlalchemy import String, Boolean, Text, DateTime, ForeignKey, func, Numeric, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -30,7 +31,7 @@ class Store(Base):
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     subscription_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_payment_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    monthly_fee: Mapped[float] = mapped_column(Numeric(10, 2), default=0, nullable=False)
+    monthly_fee: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     owner = relationship("User", back_populates="stores")

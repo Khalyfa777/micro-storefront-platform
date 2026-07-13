@@ -168,6 +168,20 @@ function validateInvitation(
     request,
   );
 
+  const removeCachedRequest = () => {
+    if (
+      validationRequestCache.get(token)
+      === request
+    ) {
+      validationRequestCache.delete(token);
+    }
+  };
+
+  void request.then(
+    removeCachedRequest,
+    removeCachedRequest,
+  );
+
   return request;
 }
 
