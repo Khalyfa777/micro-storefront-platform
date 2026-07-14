@@ -29,6 +29,7 @@ export type AdminSellerStoreSummary = {
   monthly_fee: string | number;
   trial_ends_at: string | null;
   subscription_ends_at: string | null;
+  last_payment_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -104,6 +105,22 @@ export type AdminSellerAccountEventSummary = {
   created_at: string;
 };
 
+
+export type AdminSellerSubscriptionPaymentSummary = {
+  id: string;
+  store_id: string;
+  plan_name: string;
+  amount: string | number;
+  currency: string;
+  payment_method: string;
+  payment_reference: string | null;
+  note: string | null;
+  covered_days: number;
+  approved_by_email: string | null;
+  paid_at: string;
+  created_at: string;
+};
+
 export type AdminSellerDetailResponse = {
   seller_id: string;
   full_name: string;
@@ -131,6 +148,10 @@ export type AdminSellerDetailResponse = {
   account_event_count: number;
   account_events:
     AdminSellerAccountEventSummary[];
+
+  subscription_payment_count: number;
+  subscription_payments:
+    AdminSellerSubscriptionPaymentSummary[];
 
   created_at: string;
   updated_at: string;

@@ -1,4 +1,5 @@
 import SafeProductImage from "../components/SafeProductImage";
+import { getWhatsAppNumber } from "../lib/phone";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 function formatMoney(value: string | number) {
@@ -141,6 +142,9 @@ export default async function StorePage({
 
   const store: Store = result.data.store;
   const products: Product[] = result.data.products || [];
+  const whatsappNumber = getWhatsAppNumber(
+    store.whatsapp_number,
+  );
 
   return (
     <main className="store-page">
@@ -166,10 +170,10 @@ export default async function StorePage({
             <p>{store.bio || "Shop products and place orders directly."}</p>
 
             <div className="store-actions">
-              {store.whatsapp_number && (
+              {whatsappNumber && (
                 <a
                   className="btn btn-light"
-                  href={`https://wa.me/${store.whatsapp_number}`}
+                  href={`https://wa.me/${whatsappNumber}`}
                   target="_blank"
                   rel="noreferrer"
                 >

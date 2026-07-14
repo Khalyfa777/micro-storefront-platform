@@ -836,6 +836,9 @@ async def list_admin_sellers(
                 subscription_ends_at=(
                     store.subscription_ends_at
                 ),
+                last_payment_at=(
+                    store.last_payment_at
+                ),
                 created_at=store.created_at,
                 updated_at=store.updated_at,
             )

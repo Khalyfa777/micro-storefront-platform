@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update, func
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_store_owner, require_platform_admin
@@ -9,6 +10,7 @@ from app.db.session import get_db
 from app.models import Store, User, SubscriptionPayment, SubscriptionPlan, Product
 from app.schemas.store import StoreCreate, StoreResponse, StoreUpdate
 from app.services.plan_features import ensure_plan_allows_image_uploads
+from app.services.subscription import get_subscription_extension_base
 
 
 router = APIRouter(tags=["stores"])
@@ -57,9 +59,22 @@ async def create_store(
         trial_ends_at=datetime.now(timezone.utc) + timedelta(days=settings.TRIAL_DAYS),
     )
 
-    db.add(store)
-    await db.commit()
-    await db.refresh(store)
+    try:
+        db.add(store)
+        await db.commit()
+        await db.refresh(store)
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Store slug is already taken",
+        ) from exc
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Could not create the store.",
+        ) from exc
 
     return store
 
@@ -87,8 +102,24 @@ async def update_store(
     for key, value in update_data.items():
         setattr(store, key, value)
 
-    await db.commit()
-    await db.refresh(store)
+    try:
+        await db.commit()
+        await db.refresh(store)
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Store slug is already taken",
+        ) from exc
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Could not update the store profile. "
+                "Review the fields and try again."
+            ),
+        ) from exc
 
     return store
 
@@ -204,11 +235,22 @@ class AdminExtendSubscriptionPayload(BaseModel):
         default=None,
         pattern="^(starter|business|premium|custom)$",
     )
-    amount_paid: Decimal | None = Field(default=None, ge=0)
+    amount_paid: Decimal | None = Field(
+        default=None,
+        gt=0,
+        max_digits=10,
+        decimal_places=2,
+    )
     extend_days: int = Field(default=30, ge=1, le=366)
-    payment_method: str = Field(default="manual", pattern="^(manual|momo|bank|cash|paystack)$")
-    payment_reference: str | None = Field(default=None, max_length=100)
-    note: str | None = None
+    payment_method: str = Field(
+        default="manual",
+        pattern="^(manual|momo|bank|cash|paystack)$",
+    )
+    payment_reference: str | None = Field(
+        default=None,
+        max_length=100,
+    )
+    note: str | None = Field(default=None, max_length=500)
     mark_active: bool = True
 
 
@@ -247,15 +289,33 @@ async def admin_extend_store_subscription(
 
     now = datetime.now(timezone.utc)
 
-    current_end = store.subscription_ends_at
+    if not payload.mark_active:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Paid subscription extensions must activate the store subscription."
+            ),
+        )
 
-    if current_end and current_end.tzinfo is None:
-        current_end = current_end.replace(tzinfo=timezone.utc)
-
-    base_date = current_end if current_end and current_end > now else now
+    base_date = get_subscription_extension_base(
+        store,
+        now,
+    )
 
     resolved_monthly_fee = plan.monthly_fee
-    amount_paid = payload.amount_paid if payload.amount_paid is not None else resolved_monthly_fee
+    amount_paid = (
+        payload.amount_paid
+        if payload.amount_paid is not None
+        else resolved_monthly_fee
+    )
+
+    if amount_paid <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Enter the amount received for this paid subscription."
+            ),
+        )
 
     store.plan_name = plan.name
     store.monthly_fee = resolved_monthly_fee
@@ -265,10 +325,9 @@ async def admin_extend_store_subscription(
     if not store.trial_ends_at:
         store.trial_ends_at = now
 
-    if payload.mark_active:
-        store.subscription_status = "active"
-        store.is_suspended = False
-        store.is_active = True
+    store.subscription_status = "active"
+    store.is_suspended = False
+    store.is_active = True
 
     subscription_payment = SubscriptionPayment(
         store_id=store.id,
@@ -285,8 +344,18 @@ async def admin_extend_store_subscription(
 
     db.add(subscription_payment)
 
-    await db.commit()
-    await db.refresh(store)
+    try:
+        await db.commit()
+        await db.refresh(store)
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Could not record the subscription payment. "
+                "No subscription change was saved."
+            ),
+        ) from exc
 
     return store
 class AdminStoreListItem(BaseModel):

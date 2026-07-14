@@ -53,7 +53,16 @@ class Settings(BaseSettings):
                 "SELLER_INVITATION_RATE_LIMIT_WINDOW_SECONDS must be greater than zero."
             )
 
-        if self.ENVIRONMENT.lower() != "production":
+        environment = self.ENVIRONMENT.strip().lower()
+        local_environments = {
+            "development",
+            "dev",
+            "local",
+            "test",
+            "testing",
+        }
+
+        if environment in local_environments:
             return self
 
         weak_secret_keys = {
@@ -86,8 +95,20 @@ class Settings(BaseSettings):
         for name, value in url_values.items():
             if any(marker in value for marker in local_markers):
                 raise ValueError(
-                    f"Production {name} cannot contain localhost "
+                    f"Deployed {name} cannot contain localhost "
                     "or local IP addresses."
+                )
+
+        public_urls = {
+            "FRONTEND_URL": self.FRONTEND_URL,
+            "DASHBOARD_PUBLIC_URL": self.DASHBOARD_PUBLIC_URL,
+            "BACKEND_PUBLIC_URL": self.BACKEND_PUBLIC_URL,
+        }
+
+        for name, value in public_urls.items():
+            if not value.lower().startswith("https://"):
+                raise ValueError(
+                    f"Deployed {name} must use an HTTPS URL."
                 )
 
         if (

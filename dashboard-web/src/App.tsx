@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useState } from "react";
 import { LoginPage } from "./pages/LoginPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { ProductsPage } from "./pages/ProductsPage";
@@ -13,6 +13,9 @@ import type {
 } from "./types/admin-seller";
 import { Sidebar } from "./layouts/Sidebar";
 import { DashboardShell } from "./layouts/DashboardShell";
+import {
+  normalizeGhanaWhatsAppNumber,
+} from "./utils/phone";
 import "./App.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
@@ -791,21 +794,75 @@ const platformAdminTabs: DashboardTab[] = [
   "adminPayments",
 ];
 
-function getInitialDashboardTab(): DashboardTab {
-  if (typeof window === "undefined") return "orders";
+const merchantTabs: DashboardTab[] = [
+  "orders",
+  "products",
+  "settings",
+];
 
-  const hashTab = window.location.hash.replace("#", "") as DashboardTab;
+const dashboardPathTabs: Record<string, DashboardTab> = {
+  "/admin": "adminSummary",
+  "/admin/overview": "adminSummary",
+  "/admin/sellers": "adminSellers",
+  "/admin/plans": "adminPlans",
+  "/admin/payments": "adminPayments",
+};
+
+function getDashboardTabFromPathname(
+  pathname: string,
+): DashboardTab | null {
+  const normalizedPath =
+    pathname.replace(/\/+$/, "") || "/";
+
+  return dashboardPathTabs[normalizedPath] || null;
+}
+
+function getRequestedDashboardTab(): DashboardTab | null {
+  if (typeof window === "undefined") return null;
+
+  const pathTab = getDashboardTabFromPathname(
+    window.location.pathname,
+  );
+
+  if (pathTab) return pathTab;
+
+  const hashTab = window.location.hash.replace(
+    "#",
+    "",
+  ) as DashboardTab;
+
   if (dashboardTabs.includes(hashTab)) return hashTab;
 
-  const savedTab = window.localStorage.getItem("storeplug.activeTab") as DashboardTab | null;
-  if (savedTab && dashboardTabs.includes(savedTab)) return savedTab;
+  const savedTab = window.localStorage.getItem(
+    "storeplug.activeTab",
+  ) as DashboardTab | null;
+
+  if (savedTab && dashboardTabs.includes(savedTab)) {
+    return savedTab;
+  }
+
+  return null;
+}
+
+function getInitialDashboardTab(token: string): DashboardTab {
+  const requestedTab = getRequestedDashboardTab();
+  const allowedTabs = isPlatformAdminToken(token)
+    ? dashboardTabs
+    : merchantTabs;
+
+  if (
+    requestedTab &&
+    allowedTabs.includes(requestedTab)
+  ) {
+    return requestedTab;
+  }
 
   return "orders";
 }
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token") || "");
-  
+
   const isPlatformAdmin = isPlatformAdminToken(token);
 const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -827,11 +884,55 @@ const [email, setEmail] = useState("");
 
   const [storeForm, setStoreForm] = useState<StoreForm>(emptyStoreForm);
 
-  const [activeTab, setActiveTab] = useState<DashboardTab>(() => getInitialDashboardTab());
+  const [activeTab, setActiveTab] = useState<DashboardTab>(() => getInitialDashboardTab(token));
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    if (
+      !token ||
+      typeof window === "undefined" ||
+      isPlatformAdmin
+    ) {
+      return;
+    }
+
+    const pathTab = getDashboardTabFromPathname(
+      window.location.pathname,
+    );
+
+    const requestedAdminArea =
+      platformAdminTabs.includes(activeTab) ||
+      (
+        pathTab !== null &&
+        platformAdminTabs.includes(pathTab)
+      );
+
+    if (!requestedAdminArea) {
+      return;
+    }
+
+    setActiveTab("orders");
+    localStorage.setItem(
+      "storeplug.activeTab",
+      "orders",
+    );
+    window.history.replaceState(
+      null,
+      "",
+      "/#orders",
+    );
+  }, [token, isPlatformAdmin, activeTab]);
 
   useEffect(() => {
     if (!token || typeof window === "undefined") return;
+
+    const allowedTabs = isPlatformAdmin
+      ? dashboardTabs
+      : merchantTabs;
+
+    if (!allowedTabs.includes(activeTab)) {
+      return;
+    }
 
     localStorage.setItem("storeplug.activeTab", activeTab);
 
@@ -839,7 +940,7 @@ const [email, setEmail] = useState("");
     if (window.location.hash !== nextHash) {
       window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${nextHash}`);
     }
-  }, [token, activeTab]);
+  }, [token, isPlatformAdmin, activeTab]);
 
   useEffect(() => {
     if (
@@ -876,8 +977,8 @@ const [email, setEmail] = useState("");
   ]);
 
   const [message, setMessage] = useState("");
-  
-  
+
+
   const [adminStores, setAdminStores] = useState<AdminStoreListItem[]>([]);
 
   const [adminSellers, setAdminSellers] =
@@ -924,14 +1025,22 @@ const [uploadingProductImage, setUploadingProductImage] = useState(false);
 const [error, setError] = useState("");
 
   async function apiFetch(path: string, options: RequestInit = {}) {
-    const res = await fetch(`${API_URL}${path}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        ...(options.headers || {}),
-      },
-    });
+    let res: Response;
+
+    try {
+      res = await fetch(`${API_URL}${path}`, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(options.headers || {}),
+        },
+      });
+    } catch {
+      throw new Error(
+        "Could not reach StorePlug. Check your internet connection and try again.",
+      );
+    }
 
     if (res.status === 401) {
       localStorage.removeItem("token");
@@ -1025,6 +1134,9 @@ const [error, setError] = useState("");
 
       localStorage.setItem("token", data.access_token);
       setToken(data.access_token);
+      setActiveTab(
+        getInitialDashboardTab(data.access_token),
+      );
       setEmail(loginEmail);
       setPassword("");
       setMessage("");
@@ -1059,7 +1171,18 @@ const [error, setError] = useState("");
 
   function logout() {
     localStorage.removeItem("token");
+    localStorage.removeItem("storeplug.activeTab");
     clearStoredProductDrafts();
+    setActiveTab("orders");
+
+    if (typeof window !== "undefined") {
+      window.history.replaceState(
+        null,
+        "",
+        "/#orders",
+      );
+    }
+
     setToken("");
     setStores([]);
     setSelectedStore(null);
@@ -2190,14 +2313,30 @@ try {
       return;
     }
 
+    let whatsappNumber: string | null;
+
+    try {
+      whatsappNumber =
+        normalizeGhanaWhatsAppNumber(
+          storeForm.whatsapp_number,
+        );
+    } catch (validationError) {
+      setError(
+        validationError instanceof Error
+          ? validationError.message
+          : "Enter a valid Ghana WhatsApp number.",
+      );
+      return;
+    }
+
     const payload = {
-      name: storeForm.name,
+      name: storeForm.name.trim(),
       slug: makeSlug(storeForm.slug),
-      bio: storeForm.bio || null,
-      whatsapp_number: storeForm.whatsapp_number || null,
+      bio: storeForm.bio.trim() || null,
+      whatsapp_number: whatsappNumber,
       logo_url: storeForm.logo_url || null,
       banner_url: storeForm.banner_url || null,
-      category: storeForm.category || null,
+      category: storeForm.category.trim() || null,
     };
 
     try {
@@ -2207,6 +2346,11 @@ try {
       });
 
       setSelectedStore(updatedStore);
+      setStoreForm((current) => ({
+        ...current,
+        whatsapp_number:
+          updatedStore.whatsapp_number || "",
+      }));
       setStores((prev) =>
         prev.map((store) => (store.id === updatedStore.id ? updatedStore : store))
       );
@@ -2542,6 +2686,15 @@ try {
             selectStore(store || null);
           }}
           onOpenTab={(tab) => {
+            if (
+              !isPlatformAdmin &&
+              platformAdminTabs.includes(tab)
+            ) {
+              setActiveTab("orders");
+              setIsSidebarOpen(false);
+              return;
+            }
+
             setActiveTab(tab);
             setIsSidebarOpen(false);
           }}

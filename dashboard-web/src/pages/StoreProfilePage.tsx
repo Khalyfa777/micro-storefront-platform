@@ -240,8 +240,16 @@ export function StoreProfilePage({
                 whatsapp_number: e.target.value,
               }))
             }
-            placeholder="e.g. 233 24 123 4567"
+            placeholder="e.g. 0544494613"
+            inputMode="tel"
+            autoComplete="tel"
+            maxLength={20}
           />
+          <small className="field-help-text">
+            Use one Ghana number only. Local format
+            (0544494613) is accepted and saved as
+            233544494613.
+          </small>
         </label>
 
         {subscriptionUsage?.can_upload_images === false && (

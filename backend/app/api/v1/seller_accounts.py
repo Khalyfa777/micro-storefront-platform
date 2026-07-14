@@ -17,6 +17,7 @@ from app.models import (
     SellerAccountEvent,
     SellerInvitation,
     Store,
+    SubscriptionPayment,
     User,
 )
 from app.schemas.seller import (
@@ -26,6 +27,7 @@ from app.schemas.seller import (
     AdminSellerDetailResponse,
     AdminSellerInvitationSummary,
     AdminSellerStoreSummary,
+    AdminSellerSubscriptionPaymentSummary,
 )
 from app.services.seller_listing import (
     derive_account_status,
@@ -118,6 +120,7 @@ def _store_summary(
         subscription_ends_at=(
             store.subscription_ends_at
         ),
+        last_payment_at=store.last_payment_at,
         created_at=store.created_at,
         updated_at=store.updated_at,
     )
@@ -250,6 +253,53 @@ async def get_admin_seller_detail(
         for store in stores
     ]
 
+    store_ids = [store.id for store in stores]
+    subscription_payments = []
+
+    if store_ids:
+        payment_result = await db.execute(
+            select(
+                SubscriptionPayment,
+                User.email,
+            )
+            .outerjoin(
+                User,
+                User.id
+                == SubscriptionPayment.approved_by_user_id,
+            )
+            .where(
+                SubscriptionPayment.store_id.in_(
+                    store_ids
+                )
+            )
+            .order_by(
+                SubscriptionPayment.paid_at.desc(),
+                SubscriptionPayment.id.desc(),
+            )
+            .limit(50)
+        )
+
+        subscription_payments = [
+            AdminSellerSubscriptionPaymentSummary(
+                id=payment.id,
+                store_id=payment.store_id,
+                plan_name=payment.plan_name,
+                amount=payment.amount,
+                currency=payment.currency,
+                payment_method=payment.payment_method,
+                payment_reference=(
+                    payment.payment_reference
+                ),
+                note=payment.note,
+                covered_days=payment.covered_days,
+                approved_by_email=approved_by_email,
+                paid_at=payment.paid_at,
+                created_at=payment.created_at,
+            )
+            for payment, approved_by_email
+            in payment_result.all()
+        ]
+
     return AdminSellerDetailResponse(
         seller_id=seller.id,
         full_name=seller.full_name,
@@ -277,6 +327,12 @@ async def get_admin_seller_detail(
             account_events
         ),
         account_events=account_events,
+        subscription_payment_count=len(
+            subscription_payments
+        ),
+        subscription_payments=(
+            subscription_payments
+        ),
         created_at=seller.created_at,
         updated_at=seller.updated_at,
     )

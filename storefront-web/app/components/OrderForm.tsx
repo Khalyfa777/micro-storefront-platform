@@ -1,6 +1,7 @@
 "use client";
 
 import SafeProductImage from "./SafeProductImage";
+import { getWhatsAppNumber } from "../lib/phone";
 
 import {
   useRef,
@@ -672,10 +673,10 @@ export default function OrderForm({
               </button>
             )}
 
-            {store.whatsapp_number && (
+            {getWhatsAppNumber(store.whatsapp_number) && (
               <a
                 className="whatsapp-mini"
-                href={`https://wa.me/${store.whatsapp_number}?text=${encodeURIComponent(
+                href={`https://wa.me/${getWhatsAppNumber(store.whatsapp_number)}?text=${encodeURIComponent(
                   `Hi ${store.name}, I want to ask about ${product.name}.`,
                 )}`}
                 target="_blank"
