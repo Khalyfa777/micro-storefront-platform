@@ -5,6 +5,7 @@ import pytest
 from app.api.v1.public import (
     get_public_online_payment_flag,
 )
+from app.core.config import settings
 from app.services.plan_features import (
     get_default_feature_value,
     get_plan_feature_value,
@@ -53,7 +54,15 @@ async def test_public_payment_flag_fails_closed_for_unknown_plan(
 
 
 @pytest.mark.asyncio
-async def test_public_payment_flag_keeps_defined_plan_fallback():
+async def test_public_payment_flag_keeps_defined_plan_fallback(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        settings,
+        "PAYMENTS_ENABLED",
+        True,
+    )
+
     store = SimpleNamespace(
         plan_name="starter",
     )

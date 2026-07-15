@@ -35,6 +35,7 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
 
+    PAYMENTS_ENABLED: bool = False
     PAYSTACK_SECRET_KEY: str = ""
     PAYSTACK_PUBLIC_KEY: str = ""
 
@@ -162,23 +163,30 @@ class Settings(BaseSettings):
                 "or placeholder credentials."
             )
 
-        if (
-            not self.PAYSTACK_SECRET_KEY
-            or not self.PAYSTACK_SECRET_KEY.startswith("sk_live_")
-        ):
-            raise ValueError(
-                "Production PAYSTACK_SECRET_KEY must be configured "
-                "with a live Paystack secret key."
-            )
+        if self.PAYMENTS_ENABLED:
+            if (
+                not self.PAYSTACK_SECRET_KEY
+                or not self.PAYSTACK_SECRET_KEY.startswith(
+                    "sk_live_"
+                )
+            ):
+                raise ValueError(
+                    "PAYSTACK_SECRET_KEY must be configured "
+                    "with a live Paystack secret key when "
+                    "PAYMENTS_ENABLED is true."
+                )
 
-        if (
-            not self.PAYSTACK_PUBLIC_KEY
-            or not self.PAYSTACK_PUBLIC_KEY.startswith("pk_live_")
-        ):
-            raise ValueError(
-                "Production PAYSTACK_PUBLIC_KEY must be configured "
-                "with a live Paystack public key."
-            )
+            if (
+                not self.PAYSTACK_PUBLIC_KEY
+                or not self.PAYSTACK_PUBLIC_KEY.startswith(
+                    "pk_live_"
+                )
+            ):
+                raise ValueError(
+                    "PAYSTACK_PUBLIC_KEY must be configured "
+                    "with a live Paystack public key when "
+                    "PAYMENTS_ENABLED is true."
+                )
 
         return self
 

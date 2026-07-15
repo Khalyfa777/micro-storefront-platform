@@ -19,16 +19,23 @@ from app.services.plan_features import ensure_plan_allows_online_payments
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
+PAYMENTS_UNAVAILABLE_DETAIL = (
+    "Online payments are temporarily unavailable."
+)
+
 
 def generate_reference() -> str:
     return f"MSF-{uuid4().hex[:16].upper()}"
 
 
 def get_paystack_secret_key() -> str:
-    if not settings.PAYSTACK_SECRET_KEY:
+    if (
+        not settings.PAYMENTS_ENABLED
+        or not settings.PAYSTACK_SECRET_KEY
+    ):
         raise HTTPException(
-            status_code=500,
-            detail="PAYSTACK_SECRET_KEY is not configured",
+            status_code=503,
+            detail=PAYMENTS_UNAVAILABLE_DETAIL,
         )
 
     return settings.PAYSTACK_SECRET_KEY
@@ -121,6 +128,8 @@ async def initialize_payment(
     payload: PaymentInitializeRequest,
     db: AsyncSession = Depends(get_db),
 ):
+    paystack_secret_key = get_paystack_secret_key()
+
     result = await db.execute(
         select(Order)
         .options(selectinload(Order.items))
@@ -149,7 +158,6 @@ async def initialize_payment(
 
     await ensure_plan_allows_online_payments(db, store)
 
-    paystack_secret_key = get_paystack_secret_key()
     existing_result = await db.execute(
         select(Transaction).where(
             Transaction.order_id == order.id,

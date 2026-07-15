@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.db.session import get_db
 from app.models import Store, Product, SubscriptionPlan
 from app.schemas.product import ProductResponse
@@ -14,7 +15,13 @@ router = APIRouter(tags=["public"])
 
 
 
-async def get_public_online_payment_flag(db: AsyncSession, store: Store) -> bool:
+async def get_public_online_payment_flag(
+    db: AsyncSession,
+    store: Store,
+) -> bool:
+    if not settings.PAYMENTS_ENABLED:
+        return False
+
     plan_name = (store.plan_name or "").lower().strip()
 
     result = await db.execute(
