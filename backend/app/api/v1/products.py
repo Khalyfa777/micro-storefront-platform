@@ -1,6 +1,12 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    UploadFile,
+)
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +14,14 @@ from app.api.deps import require_store_owner
 from app.db.session import get_db
 from app.models import Store, Product
 from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate
+from app.services.image_upload import (
+    delete_managed_image_if_unreferenced,
+    get_referenced_image_urls,
+    persist_uploaded_image,
+)
+from app.services.image_upload_rate_limit import (
+    enforce_image_upload_rate_limit,
+)
 from app.services.plan_limits import get_product_limit_for_store, get_product_limit_message
 from app.services.plan_features import ensure_plan_allows_image_uploads
 
@@ -186,6 +200,12 @@ async def update_product(
             detail="Product not found",
         )
 
+    previous_image_url = (
+        product.image_url
+        if "image_url" in update_data
+        else None
+    )
+
     if "slug" in update_data:
         existing_result = await db.execute(
             select(Product).where(
@@ -248,6 +268,19 @@ async def update_product(
     await db.commit()
     await db.refresh(product)
 
+    if (
+        previous_image_url
+        and previous_image_url
+        != product.image_url
+    ):
+        await (
+            delete_managed_image_if_unreferenced(
+                db=db,
+                store_id=store.id,
+                image_url=previous_image_url,
+            )
+        )
+
     return product
 
 
@@ -303,80 +336,39 @@ async def delete_product(
 # PRODUCT IMAGE UPLOAD
 # ============================
 
-import base64
-import binascii
-import io
-import os
-from uuid import uuid4
 
-from PIL import Image
-from pydantic import BaseModel, Field
-
-from app.core.config import settings
-from app.services.image_validation import validate_uploaded_image_safety
-
-
-class ProductImageUploadPayload(BaseModel):
-    filename: str
-    content_type: str
-    data_base64: str = Field(min_length=1)
-
-
-@router.post("/stores/{store_id}/uploads/product-image")
+@router.post(
+    "/stores/{store_id}/uploads/product-image"
+)
 async def upload_product_image(
-    payload: ProductImageUploadPayload,
-    store: Store = Depends(require_store_owner),
+    file: UploadFile = File(...),
+    store: Store = Depends(
+        require_store_owner
+    ),
     db: AsyncSession = Depends(get_db),
 ):
-    await ensure_plan_allows_image_uploads(db, store)
+    await ensure_plan_allows_image_uploads(
+        db,
+        store,
+    )
 
-    allowed_types = {
-        "image/jpeg": ".jpg",
-        "image/png": ".png",
-        "image/webp": ".webp",
-    }
+    await enforce_image_upload_rate_limit(
+        store.id
+    )
 
-    if payload.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=400,
-            detail="Only JPG, PNG, and WEBP images are allowed.",
+    referenced_urls = (
+        await get_referenced_image_urls(
+            db,
+            store.id,
         )
+    )
 
-    try:
-        image_bytes = base64.b64decode(payload.data_base64, validate=True)
-    except (binascii.Error, ValueError):
-        raise HTTPException(status_code=400, detail="Invalid image data.")
-
-    max_size_bytes = 3 * 1024 * 1024
-
-    if len(image_bytes) > max_size_bytes:
-        raise HTTPException(
-            status_code=400,
-            detail="Image is too large. Maximum size is 3MB.",
-        )
-
-
-    validate_uploaded_image_safety(image_bytes)
-    try:
-        image = Image.open(io.BytesIO(image_bytes))
-        image.verify()
-    except Exception:
-        raise HTTPException(
-            status_code=400,
-            detail="Uploaded file is not a valid image.",
-        )
-
-    upload_dir = "static/uploads/products"
-    os.makedirs(upload_dir, exist_ok=True)
-
-    extension = allowed_types[payload.content_type]
-    safe_filename = f"{store.id}-{uuid4().hex}{extension}"
-    file_path = os.path.join(upload_dir, safe_filename)
-
-    with open(file_path, "wb") as file:
-        file.write(image_bytes)
-
-    image_url = f"{settings.BACKEND_PUBLIC_URL.rstrip('/')}/{file_path.replace(os.sep, '/')}"
+    image_url = await persist_uploaded_image(
+        upload=file,
+        store_id=store.id,
+        category="product",
+        referenced_urls=referenced_urls,
+    )
 
     return {
         "image_url": image_url,

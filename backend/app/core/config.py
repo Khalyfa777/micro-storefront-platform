@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     SELLER_INVITATION_RATE_LIMIT_WINDOW_SECONDS: int = 300
     TRUST_PROXY_HEADERS: bool = False
 
+    MAX_REQUEST_BODY_BYTES: int = 5 * 1024 * 1024
+    IMAGE_UPLOAD_MAX_BYTES: int = 3 * 1024 * 1024
+    IMAGE_UPLOAD_STORE_QUOTA_BYTES: int = 512 * 1024 * 1024
+    IMAGE_UPLOAD_ORPHAN_TTL_SECONDS: int = 24 * 60 * 60
+    IMAGE_UPLOAD_RATE_LIMIT_ATTEMPTS: int = 20
+    IMAGE_UPLOAD_RATE_LIMIT_WINDOW_SECONDS: int = 300
+
     DATABASE_URL: str
     REDIS_URL: str = "redis://redis:6379/0"
 
@@ -51,6 +58,41 @@ class Settings(BaseSettings):
         if self.SELLER_INVITATION_RATE_LIMIT_WINDOW_SECONDS <= 0:
             raise ValueError(
                 "SELLER_INVITATION_RATE_LIMIT_WINDOW_SECONDS must be greater than zero."
+            )
+
+        positive_image_settings = {
+            "MAX_REQUEST_BODY_BYTES": self.MAX_REQUEST_BODY_BYTES,
+            "IMAGE_UPLOAD_MAX_BYTES": self.IMAGE_UPLOAD_MAX_BYTES,
+            "IMAGE_UPLOAD_STORE_QUOTA_BYTES": (
+                self.IMAGE_UPLOAD_STORE_QUOTA_BYTES
+            ),
+            "IMAGE_UPLOAD_ORPHAN_TTL_SECONDS": (
+                self.IMAGE_UPLOAD_ORPHAN_TTL_SECONDS
+            ),
+            "IMAGE_UPLOAD_RATE_LIMIT_ATTEMPTS": (
+                self.IMAGE_UPLOAD_RATE_LIMIT_ATTEMPTS
+            ),
+            "IMAGE_UPLOAD_RATE_LIMIT_WINDOW_SECONDS": (
+                self.IMAGE_UPLOAD_RATE_LIMIT_WINDOW_SECONDS
+            ),
+        }
+
+        for name, value in positive_image_settings.items():
+            if value <= 0:
+                raise ValueError(
+                    f"{name} must be greater than zero."
+                )
+
+        if self.IMAGE_UPLOAD_STORE_QUOTA_BYTES < self.IMAGE_UPLOAD_MAX_BYTES:
+            raise ValueError(
+                "IMAGE_UPLOAD_STORE_QUOTA_BYTES must be at least "
+                "IMAGE_UPLOAD_MAX_BYTES."
+            )
+
+        if self.MAX_REQUEST_BODY_BYTES <= self.IMAGE_UPLOAD_MAX_BYTES:
+            raise ValueError(
+                "MAX_REQUEST_BODY_BYTES must be greater than "
+                "IMAGE_UPLOAD_MAX_BYTES to allow multipart overhead."
             )
 
         environment = self.ENVIRONMENT.strip().lower()

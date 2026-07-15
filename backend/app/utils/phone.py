@@ -2,16 +2,27 @@ import re
 
 _ALLOWED_PHONE_CHARACTERS = re.compile(r"^[0-9+()\s.-]+$")
 _MULTIPLE_NUMBER_SEPARATORS = re.compile(r"[/,;&]")
+_GHANA_MOBILE_NATIONAL_NUMBER = re.compile(r"^[25]\d{8}$")
 
 
-def normalize_ghana_whatsapp_number(
+def _invalid_phone_message(field_label: str) -> str:
+    return (
+        f"Enter one valid {field_label}, "
+        "for example 0544494613."
+    )
+
+
+def normalize_ghana_phone_number(
     value: str,
+    *,
+    field_label: str = "Ghana mobile number",
 ) -> str | None:
-    """Normalize one Ghana phone number for use with WhatsApp.
+    """Normalize one Ghana mobile number to canonical international digits.
 
-    Accepted examples include ``0544494613``, ``233544494613`` and
-    ``+233 54 449 4613``. The stored value always uses the canonical
-    international digits-only form required by ``wa.me``.
+    StorePlug accepts Ghana mobile ranges that begin with ``02`` or ``05``
+    in local form, plus their ``233`` international equivalents. Carrier
+    prefix allocations are intentionally not hard-coded beyond that stable
+    numbering-plan boundary.
     """
 
     normalized = value.strip()
@@ -19,32 +30,47 @@ def normalize_ghana_whatsapp_number(
     if not normalized:
         return None
 
+    invalid_message = _invalid_phone_message(
+        field_label
+    )
+
     if _MULTIPLE_NUMBER_SEPARATORS.search(normalized):
         raise ValueError(
-            "Enter one Ghana WhatsApp number only."
+            f"Enter one {field_label} only."
         )
 
     if not _ALLOWED_PHONE_CHARACTERS.fullmatch(normalized):
-        raise ValueError(
-            "Enter one valid Ghana WhatsApp number, for example 0544494613."
-        )
+        raise ValueError(invalid_message)
 
     if normalized.count("+") > 1 or (
         "+" in normalized
         and not normalized.startswith("+")
     ):
-        raise ValueError(
-            "Enter one valid Ghana WhatsApp number, for example 0544494613."
-        )
+        raise ValueError(invalid_message)
 
     digits = re.sub(r"\D", "", normalized)
 
     if re.fullmatch(r"0\d{9}", digits):
-        return f"233{digits[1:]}"
+        national_number = digits[1:]
+    elif re.fullmatch(r"233\d{9}", digits):
+        national_number = digits[3:]
+    else:
+        raise ValueError(invalid_message)
 
-    if re.fullmatch(r"233\d{9}", digits):
-        return digits
+    if not _GHANA_MOBILE_NATIONAL_NUMBER.fullmatch(
+        national_number
+    ):
+        raise ValueError(invalid_message)
 
-    raise ValueError(
-        "Enter one valid Ghana WhatsApp number, for example 0544494613."
+    return f"233{national_number}"
+
+
+def normalize_ghana_whatsapp_number(
+    value: str,
+) -> str | None:
+    """Normalize one Ghana mobile number for ``wa.me`` URLs."""
+
+    return normalize_ghana_phone_number(
+        value,
+        field_label="Ghana WhatsApp number",
     )

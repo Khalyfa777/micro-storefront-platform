@@ -37,6 +37,8 @@ class SubscriptionPayment(Base):
     currency: Mapped[str] = mapped_column(String(10), default="GHS", nullable=False)
     payment_method: Mapped[str] = mapped_column(String(30), default="manual", nullable=False)
     payment_reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    request_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     covered_days: Mapped[int] = mapped_column(default=30, nullable=False)
 

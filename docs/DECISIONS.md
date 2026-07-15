@@ -134,3 +134,63 @@ containing:
 - Creation timestamp
 
 Failed or stale publication attempts must not create events.
+
+## Operational access and billing separation
+
+Store operational access is independent from subscription billing.
+
+Recording or renewing a paid subscription may update:
+
+- `stores.plan_name`
+- `stores.monthly_fee`
+- `stores.last_payment_at`
+- `stores.subscription_ends_at`
+- `stores.subscription_status`
+
+It must not automatically change:
+
+- `stores.is_active`
+- `stores.is_suspended`
+- `stores.publication_status`
+
+Operational activation, deactivation, suspension, and unsuspension must use
+the dedicated platform-admin store-status transition.
+
+Every successful store-access transition creates one append-only event
+containing:
+
+- Store ID
+- Actor user ID
+- Actor role snapshot
+- Action
+- Previous and new operational active state
+- Previous and new suspension state
+- Previous and new subscription-status snapshot
+- Optional reason
+- Creation timestamp
+
+A no-op access request must not create an event. The state change and its
+event must commit atomically.
+
+## Managed image uploads
+
+StorePlug image uploads use authenticated multipart requests. Base64 image
+payloads are not accepted.
+
+The API enforces:
+
+- a global request-body ceiling before multipart parsing;
+- a 3MB image-file limit;
+- JPEG, PNG, and WEBP declared and detected format matching;
+- 6000x6000 and 36-megapixel dimension limits;
+- per-store upload throttling backed by Redis with a bounded in-process fallback;
+- a configurable per-store managed-media quota;
+- atomic file writes;
+- delayed cleanup of abandoned unreferenced uploads;
+- cleanup of replaced managed images after the new database reference commits.
+
+Only files generated beneath StorePlug's managed upload root and current backend
+origin are eligible for automatic deletion. External image URLs are never deleted.
+
+Production deployments must mount `static/uploads` on persistent storage and
+back it up independently from the application container.

@@ -18,6 +18,7 @@ from app.api.deps import require_platform_admin
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import (
+    Product,
     SellerInvitation,
     Store,
     SubscriptionPlan,
@@ -34,6 +35,9 @@ from app.schemas.seller import (
     AdminSellerListItem,
     AdminSellerListResponse,
     AdminSellerStoreSummary,
+)
+from app.services.store_publication import (
+    get_admin_publish_blockers,
 )
 from app.services.seller_listing import (
     decode_seller_cursor,
@@ -703,11 +707,40 @@ async def list_admin_sellers(
         for seller_id in seller_ids
     }
 
-    for store in store_result.scalars().all():
+    all_seller_stores = list(
+        store_result.scalars().all()
+    )
+
+    for store in all_seller_stores:
         stores_by_seller.setdefault(
             store.owner_id,
             [],
         ).append(store)
+
+    store_ids = [
+        store.id
+        for store in all_seller_stores
+    ]
+    active_product_counts: dict[UUID, int] = {}
+
+    if store_ids:
+        product_count_result = await db.execute(
+            select(
+                Product.store_id,
+                func.count(Product.id),
+            )
+            .where(
+                Product.store_id.in_(store_ids),
+                Product.is_active.is_(True),
+            )
+            .group_by(Product.store_id)
+        )
+
+        active_product_counts = {
+            store_id: int(product_count)
+            for store_id, product_count
+            in product_count_result.all()
+        }
 
     ranked_invitations = (
         select(
@@ -813,37 +846,65 @@ async def list_admin_sellers(
             [],
         )
 
-        store_summaries = [
-            AdminSellerStoreSummary(
-                id=store.id,
-                name=store.name,
-                slug=store.slug,
-                publication_status=(
-                    store.publication_status
-                ),
-                is_active=store.is_active,
-                is_suspended=(
-                    store.is_suspended
-                ),
-                plan_name=store.plan_name,
-                subscription_status=(
-                    store.subscription_status
-                ),
-                monthly_fee=store.monthly_fee,
-                trial_ends_at=(
-                    store.trial_ends_at
-                ),
-                subscription_ends_at=(
-                    store.subscription_ends_at
-                ),
-                last_payment_at=(
-                    store.last_payment_at
-                ),
-                created_at=store.created_at,
-                updated_at=store.updated_at,
+        store_summaries = []
+
+        for store in seller_stores:
+            active_product_count = (
+                active_product_counts.get(
+                    store.id,
+                    0,
+                )
             )
-            for store in seller_stores
-        ]
+            publish_blockers = (
+                get_admin_publish_blockers(
+                    store=store,
+                    owner=seller,
+                    active_product_count=(
+                        active_product_count
+                    ),
+                    now=now,
+                )
+            )
+
+            store_summaries.append(
+                AdminSellerStoreSummary(
+                    id=store.id,
+                    name=store.name,
+                    slug=store.slug,
+                    publication_status=(
+                        store.publication_status
+                    ),
+                    is_active=store.is_active,
+                    is_suspended=(
+                        store.is_suspended
+                    ),
+                    plan_name=store.plan_name,
+                    subscription_status=(
+                        store.subscription_status
+                    ),
+                    monthly_fee=store.monthly_fee,
+                    trial_ends_at=(
+                        store.trial_ends_at
+                    ),
+                    subscription_ends_at=(
+                        store.subscription_ends_at
+                    ),
+                    last_payment_at=(
+                        store.last_payment_at
+                    ),
+                    active_product_count=(
+                        active_product_count
+                    ),
+                    publish_ready=(
+                        not publish_blockers
+                    ),
+                    publish_blockers=(
+                        publish_blockers
+                    ),
+                    created_at=store.created_at,
+                    updated_at=store.updated_at,
+                )
+            )
 
         items.append(
             AdminSellerListItem(

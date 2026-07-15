@@ -4,6 +4,11 @@ import {
   useState,
 } from "react";
 
+import {
+  clearPersistentIdempotencyAttempt,
+  getOrCreatePersistentIdempotencyAttempt,
+} from "../utils/idempotency";
+
 import type {
   AdminSellerAccountActionResponse,
   AdminSellerDetailResponse,
@@ -117,10 +122,68 @@ function formatMoney(
     {
       style: "currency",
       currency: "GHS",
+      currencyDisplay: "code",
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
     },
   ).format(numeric);
+}
+
+
+function isQuoteOnlyPlan(
+  plan?: AdminSubscriptionPlanOption | null,
+): boolean {
+  return Boolean(
+    plan?.is_quote_only ||
+    plan?.name === "custom"
+  );
+}
+
+
+function formatPlanCatalogPrice(
+  plan?: AdminSubscriptionPlanOption | null,
+): string {
+  if (!plan) {
+    return "Standard price unavailable";
+  }
+
+  if (isQuoteOnlyPlan(plan)) {
+    return "Custom quote";
+  }
+
+  return `${formatMoney(plan.monthly_fee)}/month`;
+}
+
+
+function getComputedStoreSubscriptionStatus(
+  store: AdminSellerStoreSummary,
+): string {
+  const status = store.subscription_status || "trial";
+
+  if (store.is_suspended || status === "suspended") {
+    return "suspended";
+  }
+
+  if (status === "trial" || status === "active") {
+    const expiryValue = status === "trial"
+      ? store.trial_ends_at
+      : store.subscription_ends_at;
+
+    if (!expiryValue) {
+      return "expired";
+    }
+
+    const expiryTime = new Date(expiryValue).getTime();
+
+    if (
+      !Number.isFinite(expiryTime) ||
+      expiryTime <= Date.now()
+    ) {
+      return "expired";
+    }
+  }
+
+  return status;
 }
 
 
@@ -283,6 +346,12 @@ export function AdminSellerDetailPage({
   ] = useState<SubscriptionFormState | null>(
     null,
   );
+
+  const subscriptionAttemptRef = useRef<{
+    fingerprint: string;
+    idempotencyKey: string;
+    storageKey: string | null;
+  } | null>(null);
 
   useEffect(() => {
     requestRef.current = apiFetch;
@@ -463,10 +532,11 @@ export function AdminSellerDetailPage({
 
     if (
       action === "publish" &&
-      seller.setup_status !== "completed"
+      !store.publish_ready
     ) {
       setActionError(
-        "The seller must accept the invitation and complete account setup before the store can be published.",
+        store.publish_blockers.join(" ") ||
+          "The store is not ready to publish.",
       );
       return;
     }
@@ -565,21 +635,26 @@ export function AdminSellerDetailPage({
 
     setActionError("");
     setActionMessage("");
+    subscriptionAttemptRef.current = null;
 
     setSubscriptionForm({
       storeId: store.id,
       planName: store.plan_name,
-      amountPaid: String(
-        plan?.monthly_fee
-        ?? store.monthly_fee
-        ?? "",
-      ),
+      amountPaid: isQuoteOnlyPlan(plan)
+        ? Number(store.monthly_fee) > 0
+          ? String(store.monthly_fee)
+          : ""
+        : String(
+            plan?.monthly_fee
+            ?? store.monthly_fee
+            ?? "",
+          ),
       extendDays: "30",
       paymentMethod: "momo",
       paymentReference: "",
       note: store.subscription_status === "active"
         ? "Subscription renewal"
-        : "Paid subscription activation",
+        : "Paid subscription start",
     });
   }
 
@@ -622,6 +697,56 @@ export function AdminSellerDetailPage({
       return;
     }
 
+    const requestBody = {
+      plan_name:
+        subscriptionForm.planName,
+      amount_paid: amountPaid,
+      extend_days: extendDays,
+      payment_method:
+        subscriptionForm.paymentMethod,
+      payment_reference:
+        subscriptionForm.paymentReference
+          .trim() || null,
+      note:
+        subscriptionForm.note.trim() ||
+        null,
+      mark_active: true,
+    };
+
+    const requestFingerprint = JSON.stringify({
+      storeId: subscriptionForm.storeId,
+      requestBody,
+    });
+
+    if (
+      subscriptionAttemptRef.current
+        ?.fingerprint !== requestFingerprint
+    ) {
+      const persistentAttempt =
+        await getOrCreatePersistentIdempotencyAttempt(
+          "subscription-payment",
+          requestFingerprint,
+          "subscription",
+        );
+
+      subscriptionAttemptRef.current = {
+        fingerprint:
+          requestFingerprint,
+        idempotencyKey:
+          persistentAttempt
+            .idempotencyKey,
+        storageKey:
+          persistentAttempt
+            .storageKey,
+      };
+    }
+
+    const activeAttempt =
+      subscriptionAttemptRef.current;
+
+    const idempotencyKey =
+      activeAttempt.idempotencyKey;
+
     setBusyAction("subscription");
     setActionError("");
     setActionMessage("");
@@ -633,28 +758,24 @@ export function AdminSellerDetailPage({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Idempotency-Key":
+              idempotencyKey,
           },
-          body: JSON.stringify({
-            plan_name:
-              subscriptionForm.planName,
-            amount_paid: amountPaid,
-            extend_days: extendDays,
-            payment_method:
-              subscriptionForm.paymentMethod,
-            payment_reference:
-              subscriptionForm.paymentReference
-                .trim() || null,
-            note:
-              subscriptionForm.note.trim() ||
-              null,
-            mark_active: true,
-          }),
+          body: JSON.stringify(
+            requestBody,
+          ),
         },
       );
 
       setActionMessage(
-        "Paid subscription activated and payment recorded.",
+        "Payment recorded and subscription billing period updated.",
       );
+
+      clearPersistentIdempotencyAttempt(
+        activeAttempt.storageKey,
+      );
+
+      subscriptionAttemptRef.current = null;
       setSubscriptionForm(null);
 
       setReloadKey(
@@ -666,7 +787,7 @@ export function AdminSellerDetailPage({
       setActionError(
         error instanceof Error
           ? error.message
-          : "Could not activate the paid subscription.",
+          : "Could not record the paid subscription.",
       );
     } finally {
       setBusyAction(null);
@@ -1440,18 +1561,49 @@ export function AdminSellerDetailPage({
                       <span>Subscription</span>
                       <strong>
                         {formatLabel(
-                          store.subscription_status,
+                          getComputedStoreSubscriptionStatus(
+                            store,
+                          ),
                         )}
                       </strong>
                     </div>
 
-                    <div>
-                      <span>Monthly fee</span>
+                    <div className="seller-store-charge">
+                      <span>
+                        {store.subscription_status ===
+                        "trial"
+                          ? "Trial charge"
+                          : "Monthly fee"}
+                      </span>
                       <strong>
-                        {formatMoney(
-                          store.monthly_fee,
-                        )}
+                        {store.subscription_status ===
+                        "trial"
+                          ? getComputedStoreSubscriptionStatus(
+                              store,
+                            ) === "expired"
+                            ? "Trial ended"
+                            : "GHS 0 during trial"
+                          : formatMoney(
+                              store.monthly_fee,
+                            )}
                       </strong>
+                      {store.subscription_status ===
+                        "trial" && (
+                        <small>
+                          {loadingSubscriptionPlans
+                            ? "Loading standard price..."
+                            : (
+                                <>
+                                  Standard price:{" "}
+                                  {formatPlanCatalogPrice(
+                                    getSubscriptionPlan(
+                                      store.plan_name,
+                                    ),
+                                  )}
+                                </>
+                              )}
+                        </small>
+                      )}
                     </div>
 
                     <div>
@@ -1511,8 +1663,9 @@ export function AdminSellerDetailPage({
                         Billing
                       </p>
                       <strong>
-                        {store.subscription_status ===
-                        "active"
+                        {getComputedStoreSubscriptionStatus(
+                          store,
+                        ) === "active"
                           ? "Paid subscription active"
                           : "Convert to a paid plan"}
                       </strong>
@@ -1535,8 +1688,9 @@ export function AdminSellerDetailPage({
                         loadingSubscriptionPlans
                       }
                     >
-                      {store.subscription_status ===
-                      "active"
+                      {getComputedStoreSubscriptionStatus(
+                        store,
+                      ) === "active"
                         ? "Renew or change plan"
                         : "Activate paid plan"}
                     </button>
@@ -1569,9 +1723,10 @@ export function AdminSellerDetailPage({
                         <button
                           type="button"
                           className="seller-text-button"
-                          onClick={() =>
-                            setSubscriptionForm(null)
-                          }
+                          onClick={() => {
+                            subscriptionAttemptRef.current = null;
+                            setSubscriptionForm(null);
+                          }}
                           disabled={
                             busyAction === "subscription"
                           }
@@ -1602,12 +1757,16 @@ export function AdminSellerDetailPage({
                                         ...current,
                                         planName,
                                         amountPaid:
-                                          String(
-                                            plan
-                                              ?.monthly_fee
-                                            ?? current
-                                              .amountPaid,
-                                          ),
+                                          isQuoteOnlyPlan(
+                                            plan,
+                                          )
+                                            ? ""
+                                            : String(
+                                                plan
+                                                  ?.monthly_fee
+                                                ?? current
+                                                  .amountPaid,
+                                              ),
                                       }
                                     : current,
                               );
@@ -1620,7 +1779,9 @@ export function AdminSellerDetailPage({
                                   key={plan.name}
                                   value={plan.name}
                                 >
-                                  {plan.display_name} - {formatMoney(plan.monthly_fee)}
+                                  {plan.display_name} - {isQuoteOnlyPlan(plan)
+                                    ? "Quote only"
+                                    : formatMoney(plan.monthly_fee)}
                                 </option>
                               ),
                             )}
@@ -1787,10 +1948,12 @@ export function AdminSellerDetailPage({
                         {store.publication_status ===
                         "published"
                           ? "Customers can view this storefront and create new orders."
-                          : seller.setup_status !==
-                              "completed"
-                            ? "The seller must complete invitation setup before publishing."
-                            : "Publishing requires a valid trial or subscription and at least one active product."}
+                          : store.publish_ready
+                            ? "All publication requirements are satisfied."
+                            : store.publish_blockers.join(
+                                " ",
+                              ) ||
+                              "The store is not ready to publish."}
                       </p>
                     </div>
 
@@ -1816,8 +1979,7 @@ export function AdminSellerDetailPage({
                         (
                           store.publication_status !==
                             "published" &&
-                          seller.setup_status !==
-                            "completed"
+                          !store.publish_ready
                         )
                       }
                     >

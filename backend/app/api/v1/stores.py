@@ -1,16 +1,43 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    UploadFile,
+)
 from sqlalchemy import select, update, func
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_store_owner, require_platform_admin
 from app.db.session import get_db
-from app.models import Store, User, SubscriptionPayment, SubscriptionPlan, Product
+from app.models import (
+    Product,
+    Store,
+    StoreAccessEvent,
+    SubscriptionPayment,
+    SubscriptionPlan,
+    User,
+)
 from app.schemas.store import StoreCreate, StoreResponse, StoreUpdate
+from app.services.image_upload import (
+    delete_managed_image_if_unreferenced,
+    get_referenced_image_urls,
+    persist_uploaded_image,
+)
+from app.services.image_upload_rate_limit import (
+    enforce_image_upload_rate_limit,
+)
 from app.services.plan_features import ensure_plan_allows_image_uploads
-from app.services.subscription import get_subscription_extension_base
+from app.services.subscription import (
+    build_subscription_request_fingerprint,
+    get_subscription_extension_base,
+    get_subscription_status_after_unsuspension,
+)
 
 
 router = APIRouter(tags=["stores"])
@@ -87,6 +114,18 @@ async def update_store(
 ):
     update_data = payload.model_dump(exclude_unset=True)
 
+    previous_image_urls = {
+        field_name: getattr(
+            store,
+            field_name,
+        )
+        for field_name in (
+            "logo_url",
+            "banner_url",
+        )
+        if field_name in update_data
+    }
+
     if "slug" in update_data and update_data["slug"] != store.slug:
         existing_result = await db.execute(
             select(Store).where(
@@ -121,6 +160,25 @@ async def update_store(
             ),
         ) from exc
 
+    for field_name, previous_url in (
+        previous_image_urls.items()
+    ):
+        if (
+            previous_url
+            and previous_url
+            != getattr(
+                store,
+                field_name,
+            )
+        ):
+            await (
+                delete_managed_image_if_unreferenced(
+                    db=db,
+                    store_id=store.id,
+                    image_url=previous_url,
+                )
+            )
+
     return store
 
 
@@ -139,85 +197,60 @@ async def get_store(
 # STORE LOGO / BANNER UPLOAD
 # ============================
 
-import base64
-import binascii
-import io
-import os
-from uuid import uuid4
 
-from PIL import Image
-from pydantic import BaseModel, Field
-
-from app.core.config import settings
-
-
-class StoreImageUploadPayload(BaseModel):
-    filename: str
-    content_type: str
-    image_type: str = Field(pattern="^(logo|banner)$")
-    data_base64: str = Field(min_length=1)
-
-
-@router.post("/stores/{store_id}/uploads/store-image")
+@router.post(
+    "/stores/{store_id}/uploads/store-image"
+)
 async def upload_store_image(
-    payload: StoreImageUploadPayload,
-    store: Store = Depends(require_store_owner),
+    image_type: str = Form(...),
+    file: UploadFile = File(...),
+    store: Store = Depends(
+        require_store_owner
+    ),
     db: AsyncSession = Depends(get_db),
 ):
-    await ensure_plan_allows_image_uploads(db, store)
+    if image_type not in {
+        "logo",
+        "banner",
+    }:
+        await file.close()
 
-    allowed_types = {
-        "image/jpeg": ".jpg",
-        "image/png": ".png",
-        "image/webp": ".webp",
-    }
-
-    if payload.content_type not in allowed_types:
         raise HTTPException(
             status_code=400,
-            detail="Only JPG, PNG, and WEBP images are allowed.",
+            detail=(
+                "Image type must be logo "
+                "or banner."
+            ),
         )
 
-    try:
-        image_bytes = base64.b64decode(payload.data_base64, validate=True)
-    except (binascii.Error, ValueError):
-        raise HTTPException(status_code=400, detail="Invalid image data.")
+    await ensure_plan_allows_image_uploads(
+        db,
+        store,
+    )
 
-    max_size_bytes = 3 * 1024 * 1024
+    await enforce_image_upload_rate_limit(
+        store.id
+    )
 
-    if len(image_bytes) > max_size_bytes:
-        raise HTTPException(
-            status_code=400,
-            detail="Image is too large. Maximum size is 3MB.",
+    referenced_urls = (
+        await get_referenced_image_urls(
+            db,
+            store.id,
         )
+    )
 
-
-    validate_uploaded_image_safety(image_bytes)
-    try:
-        image = Image.open(io.BytesIO(image_bytes))
-        image.verify()
-    except Exception:
-        raise HTTPException(
-            status_code=400,
-            detail="Uploaded file is not a valid image.",
-        )
-
-    upload_dir = f"static/uploads/stores/{payload.image_type}s"
-    os.makedirs(upload_dir, exist_ok=True)
-
-    extension = allowed_types[payload.content_type]
-    safe_filename = f"{store.id}-{payload.image_type}-{uuid4().hex}{extension}"
-    file_path = os.path.join(upload_dir, safe_filename)
-
-    with open(file_path, "wb") as file:
-        file.write(image_bytes)
-
-    image_url = f"{settings.BACKEND_PUBLIC_URL.rstrip('/')}/{file_path.replace(os.sep, '/')}"
+    image_url = await persist_uploaded_image(
+        upload=file,
+        store_id=store.id,
+        category=image_type,
+        referenced_urls=referenced_urls,
+    )
 
     return {
         "image_url": image_url,
-        "image_type": payload.image_type,
+        "image_type": image_type,
     }
+
 
 # ============================
 # ADMIN SUBSCRIPTION MANAGEMENT
@@ -226,8 +259,7 @@ async def upload_store_image(
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
-from app.services.image_validation import validate_uploaded_image_safety
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AdminExtendSubscriptionPayload(BaseModel):
@@ -258,9 +290,49 @@ class AdminExtendSubscriptionPayload(BaseModel):
 async def admin_extend_store_subscription(
     store_id: UUID,
     payload: AdminExtendSubscriptionPayload,
+    idempotency_key: str = Header(
+        ...,
+        alias="Idempotency-Key",
+        min_length=16,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9._:-]+$",
+    ),
     current_user: User = Depends(require_platform_admin),
     db: AsyncSession = Depends(get_db),
 ):
+    normalized_idempotency_key = (
+        idempotency_key.strip()
+    )
+    normalized_reference = (
+        (payload.payment_reference or "").strip()
+        or None
+    )
+    normalized_note = (
+        (payload.note or "").strip()
+        or None
+    )
+    normalized_payment_method = (
+        payload.payment_method.lower().strip()
+    )
+
+    request_fingerprint = (
+        build_subscription_request_fingerprint(
+            store_id=store_id,
+            approved_by_user_id=current_user.id,
+            plan_name=payload.plan_name,
+            amount_paid=payload.amount_paid,
+            extend_days=payload.extend_days,
+            payment_method=(
+                normalized_payment_method
+            ),
+            payment_reference=(
+                normalized_reference
+            ),
+            note=normalized_note,
+            mark_active=payload.mark_active,
+        )
+    )
+
     result = await db.execute(
         select(Store)
         .where(Store.id == store_id)
@@ -272,7 +344,87 @@ async def admin_extend_store_subscription(
     if not store:
         raise HTTPException(status_code=404, detail="Store not found")
 
-    requested_plan_name = (payload.plan_name or store.plan_name or "starter").lower().strip()
+    existing_payment_result = await db.execute(
+        select(SubscriptionPayment).where(
+            SubscriptionPayment.store_id
+            == store.id,
+            SubscriptionPayment.idempotency_key
+            == normalized_idempotency_key,
+        )
+    )
+    existing_payment = (
+        existing_payment_result.scalar_one_or_none()
+    )
+
+    if existing_payment is not None:
+        if (
+            existing_payment.request_fingerprint
+            != request_fingerprint
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This idempotency key was already used "
+                    "for a different subscription request."
+                ),
+            )
+
+        await db.commit()
+        await db.refresh(store)
+        return store
+
+    external_reference_methods = {
+        "momo",
+        "bank",
+        "paystack",
+    }
+
+    if (
+        normalized_payment_method
+        in external_reference_methods
+        and normalized_reference is None
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "A payment reference is required for "
+                f"{normalized_payment_method} payments."
+            ),
+        )
+
+    if (
+        normalized_payment_method
+        in external_reference_methods
+    ):
+        reference_result = await db.execute(
+            select(SubscriptionPayment).where(
+                SubscriptionPayment.payment_method
+                == normalized_payment_method,
+                func.lower(
+                    func.btrim(
+                        SubscriptionPayment.payment_reference
+                    )
+                )
+                == normalized_reference.lower(),
+            )
+        )
+        reference_payment = (
+            reference_result.scalar_one_or_none()
+        )
+
+        if reference_payment is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This payment reference has already been recorded."
+                ),
+            )
+
+    requested_plan_name = (
+        payload.plan_name
+        or store.plan_name
+        or "starter"
+    ).lower().strip()
 
     plan_result = await db.execute(
         select(SubscriptionPlan)
@@ -326,18 +478,29 @@ async def admin_extend_store_subscription(
         store.trial_ends_at = now
 
     store.subscription_status = "active"
-    store.is_suspended = False
-    store.is_active = True
 
+    # Recording payment changes billing state only.
+    # Operational activation and suspension require
+    # the dedicated admin store-status transition.
     subscription_payment = SubscriptionPayment(
         store_id=store.id,
         approved_by_user_id=current_user.id,
         plan_name=plan.name,
         amount=amount_paid,
         currency="GHS",
-        payment_method=payload.payment_method,
-        payment_reference=payload.payment_reference,
-        note=payload.note,
+        payment_method=(
+            normalized_payment_method
+        ),
+        payment_reference=(
+            normalized_reference
+        ),
+        idempotency_key=(
+            normalized_idempotency_key
+        ),
+        request_fingerprint=(
+            request_fingerprint
+        ),
+        note=normalized_note,
         covered_days=payload.extend_days,
         paid_at=now,
     )
@@ -347,6 +510,14 @@ async def admin_extend_store_subscription(
     try:
         await db.commit()
         await db.refresh(store)
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This subscription payment request was already processed."
+            ),
+        ) from exc
     except SQLAlchemyError as exc:
         await db.rollback()
         raise HTTPException(
@@ -358,6 +529,8 @@ async def admin_extend_store_subscription(
         ) from exc
 
     return store
+
+
 class AdminStoreListItem(BaseModel):
     id: UUID
     owner_id: UUID
@@ -368,6 +541,7 @@ class AdminStoreListItem(BaseModel):
     plan_name: str
     subscription_status: str
     monthly_fee: Decimal
+    trial_ends_at: datetime | None = None
     subscription_ends_at: datetime | None = None
     last_payment_at: datetime | None = None
     is_active: bool
@@ -415,6 +589,7 @@ async def admin_list_all_stores(
             plan_name=store.plan_name,
             subscription_status=store.subscription_status,
             monthly_fee=store.monthly_fee,
+            trial_ends_at=store.trial_ends_at,
             subscription_ends_at=store.subscription_ends_at,
             last_payment_at=store.last_payment_at,
             is_active=store.is_active,
@@ -482,13 +657,45 @@ async def admin_list_subscription_payments(
     ]
 
 class AdminStoreStatusUpdate(BaseModel):
-    subscription_status: str | None = Field(
-        default=None,
-        pattern="^(trial|active|expired|suspended)$",
-    )
     is_active: bool | None = None
     is_suspended: bool | None = None
-    note: str | None = None
+    note: str | None = Field(
+        default=None,
+        max_length=500,
+    )
+
+    model_config = ConfigDict(
+        extra="forbid"
+    )
+
+
+def _derive_store_access_action(
+    *,
+    previous_is_active: bool,
+    new_is_active: bool,
+    previous_is_suspended: bool,
+    new_is_suspended: bool,
+) -> str:
+    if (
+        previous_is_suspended
+        != new_is_suspended
+    ):
+        return (
+            "suspend"
+            if new_is_suspended
+            else "unsuspend"
+        )
+
+    if previous_is_active != new_is_active:
+        return (
+            "activate"
+            if new_is_active
+            else "deactivate"
+        )
+
+    raise ValueError(
+        "Store access state did not change."
+    )
 
 
 @router.patch("/admin/stores/{store_id}/status", response_model=StoreResponse)
@@ -498,30 +705,146 @@ async def admin_update_store_status(
     current_user: User = Depends(require_platform_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(Store)
-        .where(Store.id == store_id)
-        .with_for_update()
-    )
+    if (
+        payload.is_active is None
+        and payload.is_suspended is None
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="No store status change was requested.",
+        )
 
-    store = result.scalar_one_or_none()
+    try:
+        result = await db.execute(
+            select(Store)
+            .where(Store.id == store_id)
+            .with_for_update()
+        )
 
-    if not store:
-        raise HTTPException(status_code=404, detail="Store not found.")
+        store = result.scalar_one_or_none()
 
-    if payload.subscription_status is not None:
-        store.subscription_status = payload.subscription_status
+        if not store:
+            raise HTTPException(
+                status_code=404,
+                detail="Store not found.",
+            )
 
-    if payload.is_active is not None:
-        store.is_active = payload.is_active
+        previous_is_active = bool(
+            store.is_active
+        )
+        previous_is_suspended = bool(
+            store.is_suspended
+        )
+        previous_subscription_status = (
+            store.subscription_status
+        )
 
-    if payload.is_suspended is not None:
-        store.is_suspended = payload.is_suspended
+        if payload.is_active is not None:
+            store.is_active = payload.is_active
 
-    await db.commit()
-    await db.refresh(store)
+        if payload.is_suspended is not None:
+            store.is_suspended = (
+                payload.is_suspended
+            )
 
-    return store
+            if (
+                previous_is_suspended
+                and not store.is_suspended
+            ):
+                store.subscription_status = (
+                    get_subscription_status_after_unsuspension(
+                        store
+                    )
+                )
+
+        new_is_active = bool(
+            store.is_active
+        )
+        new_is_suspended = bool(
+            store.is_suspended
+        )
+
+        if (
+            previous_is_active
+            == new_is_active
+            and previous_is_suspended
+            == new_is_suspended
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Store access status is already "
+                    "set to the requested state."
+                ),
+            )
+
+        changed_at = datetime.now(
+            timezone.utc
+        )
+        normalized_note = (
+            (payload.note or "").strip()
+            or None
+        )
+
+        event = StoreAccessEvent(
+            store_id=store.id,
+            actor_user_id=current_user.id,
+            actor_role=current_user.role,
+            action=_derive_store_access_action(
+                previous_is_active=(
+                    previous_is_active
+                ),
+                new_is_active=new_is_active,
+                previous_is_suspended=(
+                    previous_is_suspended
+                ),
+                new_is_suspended=(
+                    new_is_suspended
+                ),
+            ),
+            previous_is_active=(
+                previous_is_active
+            ),
+            new_is_active=new_is_active,
+            previous_is_suspended=(
+                previous_is_suspended
+            ),
+            new_is_suspended=(
+                new_is_suspended
+            ),
+            previous_subscription_status=(
+                previous_subscription_status
+            ),
+            new_subscription_status=(
+                store.subscription_status
+            ),
+            reason=normalized_note,
+            created_at=changed_at,
+        )
+
+        store.updated_at = changed_at
+        db.add(event)
+
+        await db.flush()
+        await db.commit()
+
+        return store
+
+    except HTTPException:
+        await db.rollback()
+        raise
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Could not update the store access status."
+            ),
+        ) from exc
+    except Exception:
+        await db.rollback()
+        raise
+
 
 class AdminSubscriptionSummary(BaseModel):
     total_stores: int
@@ -576,7 +899,11 @@ async def admin_subscription_summary(
     for store in stores:
         status = store.subscription_status or "trial"
 
-        end_at = store.subscription_ends_at
+        end_at = (
+            store.trial_ends_at
+            if status == "trial"
+            else store.subscription_ends_at
+        )
         if end_at and end_at.tzinfo is None:
             end_at = end_at.replace(tzinfo=timezone.utc)
 
@@ -584,7 +911,13 @@ async def admin_subscription_summary(
             suspended_stores += 1
             continue
 
-        if status == "expired" or (end_at and end_at <= now):
+        if status == "expired" or (
+            status in {"trial", "active"}
+            and (
+                end_at is None
+                or end_at <= now
+            )
+        ):
             expired_stores += 1
             continue
 
@@ -594,10 +927,10 @@ async def admin_subscription_summary(
             active_stores += 1
             monthly_recurring_total += store.monthly_fee or Decimal("0.00")
 
-            if end_at:
-                days_left = (end_at - now).days
-                if 0 <= days_left <= 7:
-                    expiring_within_7_days += 1
+        if status in {"trial", "active"}:
+            days_left = (end_at - now).days
+            if 0 <= days_left <= 7:
+                expiring_within_7_days += 1
 
     subscription_revenue_total = Decimal("0.00")
     subscription_revenue_this_month = Decimal("0.00")

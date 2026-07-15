@@ -2,6 +2,9 @@
 
 import SafeProductImage from "./SafeProductImage";
 import { getWhatsAppNumber } from "../lib/phone";
+import {
+  resolveStorefrontApiBaseUrl,
+} from "../lib/api-url";
 
 import {
   useRef,
@@ -10,8 +13,7 @@ import {
 
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:8000/api/v1";
+  resolveStorefrontApiBaseUrl();
 
 const ORDER_ATTEMPT_STORAGE_PREFIX =
   "storeplug:order-attempt";

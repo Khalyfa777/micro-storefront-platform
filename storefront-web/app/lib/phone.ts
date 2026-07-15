@@ -1,3 +1,5 @@
+const GHANA_MOBILE_NATIONAL_NUMBER = /^[25]\d{8}$/;
+
 export function getWhatsAppNumber(
   value?: string | null,
 ): string | null {
@@ -19,14 +21,23 @@ export function getWhatsAppNumber(
   }
 
   const digits = normalized.replace(/\D/g, "");
+  let nationalNumber = "";
 
   if (/^0\d{9}$/.test(digits)) {
-    return `233${digits.slice(1)}`;
+    nationalNumber = digits.slice(1);
+  } else if (/^233\d{9}$/.test(digits)) {
+    nationalNumber = digits.slice(3);
+  } else {
+    return null;
   }
 
-  if (/^233\d{9}$/.test(digits)) {
-    return digits;
+  if (
+    !GHANA_MOBILE_NATIONAL_NUMBER.test(
+      nationalNumber,
+    )
+  ) {
+    return null;
   }
 
-  return null;
+  return `233${nationalNumber}`;
 }

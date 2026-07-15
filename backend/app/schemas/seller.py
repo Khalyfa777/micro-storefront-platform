@@ -10,6 +10,7 @@ from pydantic import (
     field_validator,
 )
 
+from app.utils.phone import normalize_ghana_phone_number
 from app.utils.slug import normalize_slug
 
 
@@ -62,11 +63,11 @@ class AdminSellerCreateRequest(BaseModel):
             return None
 
         if not isinstance(value, str):
-            return value
+            raise ValueError(
+                "Phone number must be text."
+            )
 
-        normalized = value.strip()
-
-        return normalized or None
+        return normalize_ghana_phone_number(value)
 
     @field_validator(
         "store_slug",
@@ -201,6 +202,12 @@ class AdminSellerStoreSummary(BaseModel):
     plan_name: str
     subscription_status: str
     monthly_fee: Decimal
+
+    active_product_count: int = 0
+    publish_ready: bool = False
+    publish_blockers: list[str] = Field(
+        default_factory=list
+    )
 
     trial_ends_at: datetime | None = None
     subscription_ends_at: datetime | None = None

@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
+from app.schemas.seller import AdminSellerCreateRequest
 from app.schemas.store import StoreUpdate
 from app.services.subscription import (
     get_subscription_extension_base,
@@ -39,6 +40,9 @@ def test_store_update_normalizes_ghana_whatsapp_number(
         "05444ABC13",
         "+233544494613+",
         "544494613",
+        "0000000000",
+        "+233 00 000 0000",
+        "0302123456",
     ],
 )
 def test_store_update_rejects_invalid_or_multiple_numbers(
@@ -47,6 +51,56 @@ def test_store_update_rejects_invalid_or_multiple_numbers(
     with pytest.raises(ValidationError):
         StoreUpdate(
             whatsapp_number=raw_value,
+        )
+
+
+@pytest.mark.parametrize(
+    ("raw_value", "expected"),
+    [
+        ("0544494613", "233544494613"),
+        ("+233 54 449 4613", "233544494613"),
+        ("0201234567", "233201234567"),
+        ("", None),
+    ],
+)
+def test_admin_seller_create_normalizes_ghana_phone_number(
+    raw_value,
+    expected,
+):
+    payload = AdminSellerCreateRequest(
+        full_name="Mobile Test Seller",
+        email="mobile-seller@example.com",
+        phone_number=raw_value,
+        store_name="Mobile Test Store",
+        store_slug="mobile-test-store",
+        plan_name="starter",
+    )
+
+    assert payload.phone_number == expected
+
+
+@pytest.mark.parametrize(
+    "raw_value",
+    [
+        "0544494613,0244000000",
+        "0557657643/0544494613",
+        "0000000000",
+        "+233 00 000 0000",
+        "0302123456",
+        "not-a-phone",
+    ],
+)
+def test_admin_seller_create_rejects_invalid_phone_number(
+    raw_value,
+):
+    with pytest.raises(ValidationError):
+        AdminSellerCreateRequest(
+            full_name="Mobile Test Seller",
+            email="mobile-seller@example.com",
+            phone_number=raw_value,
+            store_name="Mobile Test Store",
+            store_slug="mobile-test-store",
+            plan_name="starter",
         )
 
 

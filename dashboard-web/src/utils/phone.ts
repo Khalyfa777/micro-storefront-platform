@@ -1,8 +1,10 @@
 const MULTIPLE_NUMBER_SEPARATORS = /[/,;&]/;
 const ALLOWED_PHONE_CHARACTERS = /^[0-9+()\s.-]+$/;
+const GHANA_MOBILE_NATIONAL_NUMBER = /^[25]\d{8}$/;
 
-export function normalizeGhanaWhatsAppNumber(
+function normalizeGhanaMobileNumber(
   value: string,
+  fieldLabel: string,
 ): string | null {
   const normalized = value.trim();
 
@@ -14,7 +16,7 @@ export function normalizeGhanaWhatsAppNumber(
     MULTIPLE_NUMBER_SEPARATORS.test(normalized)
   ) {
     throw new Error(
-      "Enter one Ghana WhatsApp number only.",
+      `Enter one ${fieldLabel} only.`,
     );
   }
 
@@ -25,21 +27,50 @@ export function normalizeGhanaWhatsAppNumber(
     (normalized.match(/\+/g)?.length ?? 0) > 1
   ) {
     throw new Error(
-      "Enter one valid Ghana WhatsApp number, for example 0544494613.",
+      `Enter one valid ${fieldLabel}, for example 0544494613.`,
     );
   }
 
   const digits = normalized.replace(/\D/g, "");
+  let nationalNumber: string;
 
   if (/^0\d{9}$/.test(digits)) {
-    return `233${digits.slice(1)}`;
+    nationalNumber = digits.slice(1);
+  } else if (/^233\d{9}$/.test(digits)) {
+    nationalNumber = digits.slice(3);
+  } else {
+    throw new Error(
+      `Enter one valid ${fieldLabel}, for example 0544494613.`,
+    );
   }
 
-  if (/^233\d{9}$/.test(digits)) {
-    return digits;
+  if (
+    !GHANA_MOBILE_NATIONAL_NUMBER.test(
+      nationalNumber,
+    )
+  ) {
+    throw new Error(
+      `Enter one valid ${fieldLabel}, for example 0544494613.`,
+    );
   }
 
-  throw new Error(
-    "Enter one valid Ghana WhatsApp number, for example 0544494613.",
+  return `233${nationalNumber}`;
+}
+
+export function normalizeGhanaPhoneNumber(
+  value: string,
+): string | null {
+  return normalizeGhanaMobileNumber(
+    value,
+    "Ghana mobile number",
+  );
+}
+
+export function normalizeGhanaWhatsAppNumber(
+  value: string,
+): string | null {
+  return normalizeGhanaMobileNumber(
+    value,
+    "Ghana WhatsApp number",
   );
 }

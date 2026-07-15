@@ -14,30 +14,60 @@ import type {
 import { Sidebar } from "./layouts/Sidebar";
 import { DashboardShell } from "./layouts/DashboardShell";
 import {
+  resolvePublicStoreBaseUrl,
+} from "./utils/public-store-url";
+import {
+  resolveDashboardApiBaseUrl,
+  toPortableDashboardMediaReference,
+} from "./utils/api-url";
+
+import {
   normalizeGhanaWhatsAppNumber,
 } from "./utils/phone";
 import "./App.css";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
+const API_URL =
+  resolveDashboardApiBaseUrl();
+
+const MAX_IMAGE_UPLOAD_BYTES =
+  3 * 1024 * 1024;
+
+const ALLOWED_IMAGE_UPLOAD_TYPES =
+  new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ]);
+
+function getImageUploadValidationError(
+  file: File,
+): string | null {
+  if (
+    !ALLOWED_IMAGE_UPLOAD_TYPES.has(
+      file.type,
+    )
+  ) {
+    return (
+      "Only JPG, PNG, and WEBP " +
+      "images are allowed."
+    );
+  }
+
+  if (
+    file.size >
+    MAX_IMAGE_UPLOAD_BYTES
+  ) {
+    return (
+      "Image is too large. " +
+      "Maximum size is 3MB."
+    );
+  }
+
+  return null;
+}
 
 
 
-
-type AdminStoreListItem = {
-  id: string;
-  owner_id: string;
-  owner_email: string;
-  owner_name: string;
-  slug: string;
-  name: string;
-  plan_name: string;
-  subscription_status: string;
-  monthly_fee: string | number;
-  subscription_ends_at?: string | null;
-  last_payment_at?: string | null;
-  is_active: boolean;
-  is_suspended: boolean;
-};
 
 type AdminSubscriptionPaymentItem = {
   id: string;
@@ -72,6 +102,7 @@ type AdminSubscriptionPlanItem = {
   name: string;
   display_name: string;
   monthly_fee: string | number;
+  is_quote_only: boolean;
   product_limit?: number | null;
   can_upload_images: boolean;
   can_use_custom_domain: boolean;
@@ -84,6 +115,7 @@ type AdminSubscriptionPlanItem = {
 type SubscriptionPlanDraft = {
   display_name: string;
   monthly_fee: string;
+  is_quote_only: boolean;
   product_limit: string;
   can_upload_images: boolean;
   can_use_custom_domain: boolean;
@@ -94,6 +126,7 @@ type StoreSubscriptionUsage = {
   plan_name: string;
   display_name: string;
   monthly_fee: string | number;
+  is_quote_only: boolean;
   product_limit?: number | null;
   active_products: number;
   remaining_products?: number | null;
@@ -208,50 +241,93 @@ function getApiErrorMessage(
 
   return JSON.stringify(detail) || fallback;
 }
-const PUBLIC_STORE_URL = import.meta.env.VITE_PUBLIC_STORE_URL || "http://localhost:3000";
+const PUBLIC_STORE_URL = resolvePublicStoreBaseUrl();
 const SUPPORT_WHATSAPP_NUMBER = import.meta.env.VITE_SUPPORT_WHATSAPP || "233544193559";
 
 
+function getSubscriptionExpiryDate(
+  status?: string | null,
+  trialEndsAt?: string | null,
+  subscriptionEndsAt?: string | null,
+) {
+  return (status || "trial") === "trial"
+    ? trialEndsAt
+    : subscriptionEndsAt;
+}
+
 function getComputedSubscriptionStatus(
   status?: string | null,
+  trialEndsAt?: string | null,
   subscriptionEndsAt?: string | null,
-  isSuspended?: boolean | null
+  isSuspended?: boolean | null,
 ) {
-  if (isSuspended || status === "suspended") {
+  const normalizedStatus = status || "trial";
+
+  if (isSuspended || normalizedStatus === "suspended") {
     return "suspended";
   }
 
-  if (status === "active" && subscriptionEndsAt) {
-    const expiryTime = new Date(subscriptionEndsAt).getTime();
+  if (
+    normalizedStatus === "trial" ||
+    normalizedStatus === "active"
+  ) {
+    const expiryValue = getSubscriptionExpiryDate(
+      normalizedStatus,
+      trialEndsAt,
+      subscriptionEndsAt,
+    );
 
-    if (Number.isFinite(expiryTime) && expiryTime <= Date.now()) {
+    if (!expiryValue) {
+      return "expired";
+    }
+
+    const expiryTime = new Date(expiryValue).getTime();
+
+    if (
+      !Number.isFinite(expiryTime) ||
+      expiryTime <= Date.now()
+    ) {
       return "expired";
     }
   }
 
-  return status || "trial";
+  return normalizedStatus;
 }
 
 function getSubscriptionTimeLabel(
   status?: string | null,
+  trialEndsAt?: string | null,
   subscriptionEndsAt?: string | null,
-  isSuspended?: boolean | null
+  isSuspended?: boolean | null,
 ) {
   const computedStatus = getComputedSubscriptionStatus(
     status,
+    trialEndsAt,
     subscriptionEndsAt,
-    isSuspended
+    isSuspended,
   );
 
   if (computedStatus === "suspended") {
     return "Suspended";
   }
 
-  if (!subscriptionEndsAt) {
+  if (computedStatus === "expired") {
+    return status === "trial"
+      ? "Trial expired"
+      : "Expired";
+  }
+
+  const expiryValue = getSubscriptionExpiryDate(
+    status,
+    trialEndsAt,
+    subscriptionEndsAt,
+  );
+
+  if (!expiryValue) {
     return "No expiry date";
   }
 
-  const expiryTime = new Date(subscriptionEndsAt).getTime();
+  const expiryTime = new Date(expiryValue).getTime();
 
   if (!Number.isFinite(expiryTime)) {
     return "Invalid expiry date";
@@ -260,12 +336,10 @@ function getSubscriptionTimeLabel(
   const diffMs = expiryTime - Date.now();
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays < 0) {
-    return "Expired";
-  }
-
-  if (diffDays === 0) {
-    return "Expires today";
+  if (diffDays <= 0) {
+    return status === "trial"
+      ? "Trial expired"
+      : "Expired";
   }
 
   if (diffDays === 1) {
@@ -277,24 +351,35 @@ function getSubscriptionTimeLabel(
 
 function getSubscriptionTimeClass(
   status?: string | null,
+  trialEndsAt?: string | null,
   subscriptionEndsAt?: string | null,
-  isSuspended?: boolean | null
+  isSuspended?: boolean | null,
 ) {
   const computedStatus = getComputedSubscriptionStatus(
     status,
+    trialEndsAt,
     subscriptionEndsAt,
-    isSuspended
+    isSuspended,
   );
 
-  if (computedStatus === "suspended" || computedStatus === "expired") {
+  if (
+    computedStatus === "suspended" ||
+    computedStatus === "expired"
+  ) {
     return "danger";
   }
 
-  if (!subscriptionEndsAt) {
+  const expiryValue = getSubscriptionExpiryDate(
+    status,
+    trialEndsAt,
+    subscriptionEndsAt,
+  );
+
+  if (!expiryValue) {
     return "neutral";
   }
 
-  const expiryTime = new Date(subscriptionEndsAt).getTime();
+  const expiryTime = new Date(expiryValue).getTime();
 
   if (!Number.isFinite(expiryTime)) {
     return "danger";
@@ -378,6 +463,9 @@ type Store = {
   category?: string | null;
   is_active?: boolean;
   is_suspended?: boolean;
+  publication_status:
+    | "draft"
+    | "published";
   plan_name?: string;
   subscription_status?: string;
   trial_ends_at?: string | null;
@@ -454,8 +542,9 @@ function shouldShowSubscriptionBanner(store?: Store | null) {
 
   const status = getComputedSubscriptionStatus(
     store.subscription_status,
+    store.trial_ends_at,
     store.subscription_ends_at,
-    store.is_suspended
+    store.is_suspended,
   );
 
   if (status === "expired" || status === "suspended") {
@@ -464,8 +553,9 @@ function shouldShowSubscriptionBanner(store?: Store | null) {
 
   const timeClass = getSubscriptionTimeClass(
     store.subscription_status,
+    store.trial_ends_at,
     store.subscription_ends_at,
-    store.is_suspended
+    store.is_suspended,
   );
 
   return timeClass === "warning" || timeClass === "danger";
@@ -474,8 +564,9 @@ function shouldShowSubscriptionBanner(store?: Store | null) {
 function getSubscriptionBannerTitle(store: Store) {
   const status = getComputedSubscriptionStatus(
     store.subscription_status,
+    store.trial_ends_at,
     store.subscription_ends_at,
-    store.is_suspended
+    store.is_suspended,
   );
 
   if (status === "suspended") {
@@ -483,7 +574,9 @@ function getSubscriptionBannerTitle(store: Store) {
   }
 
   if (status === "expired") {
-    return "Subscription expired";
+    return store.subscription_status === "trial"
+      ? "Trial expired"
+      : "Subscription expired";
   }
 
   return "Subscription renewal reminder";
@@ -492,8 +585,9 @@ function getSubscriptionBannerTitle(store: Store) {
 function getSubscriptionBannerMessage(store: Store) {
   const status = getComputedSubscriptionStatus(
     store.subscription_status,
+    store.trial_ends_at,
     store.subscription_ends_at,
-    store.is_suspended
+    store.is_suspended,
   );
 
   if (status === "suspended") {
@@ -501,13 +595,16 @@ function getSubscriptionBannerMessage(store: Store) {
   }
 
   if (status === "expired") {
-    return "Your public store is not accepting orders right now. Renew your subscription to reactivate selling.";
+    return store.subscription_status === "trial"
+      ? "Your free trial has ended. Activate a paid plan to continue accepting orders."
+      : "Your public store is not accepting orders right now. Renew your subscription to reactivate selling.";
   }
 
   return `Your subscription has ${getSubscriptionTimeLabel(
     store.subscription_status,
+    store.trial_ends_at,
     store.subscription_ends_at,
-    store.is_suspended
+    store.is_suspended,
   ).toLowerCase()}. Renew early to avoid interruption.`;
 }
 
@@ -900,18 +997,13 @@ const [email, setEmail] = useState("");
       window.location.pathname,
     );
 
-    const requestedAdminArea =
-      platformAdminTabs.includes(activeTab) ||
-      (
-        pathTab !== null &&
-        platformAdminTabs.includes(pathTab)
-      );
-
-    if (!requestedAdminArea) {
+    if (
+      pathTab === null ||
+      !platformAdminTabs.includes(pathTab)
+    ) {
       return;
     }
 
-    setActiveTab("orders");
     localStorage.setItem(
       "storeplug.activeTab",
       "orders",
@@ -921,7 +1013,7 @@ const [email, setEmail] = useState("");
       "",
       "/#orders",
     );
-  }, [token, isPlatformAdmin, activeTab]);
+  }, [token, isPlatformAdmin]);
 
   useEffect(() => {
     if (!token || typeof window === "undefined") return;
@@ -979,7 +1071,6 @@ const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
 
 
-  const [adminStores, setAdminStores] = useState<AdminStoreListItem[]>([]);
 
   const [adminSellers, setAdminSellers] =
     useState<AdminSellerListItem[]>([]);
@@ -1008,10 +1099,7 @@ const [email, setEmail] = useState("");
     adminSellerListError,
     setAdminSellerListError,
   ] = useState("");
-  const [adminStoreFilter, setAdminStoreFilter] = useState<"all" | "active" | "trial" | "expired" | "suspended" | "expiring">("all");
-  const [adminStoreSearch, setAdminStoreSearch] = useState("");
-  const [loadingAdminStores, setLoadingAdminStores] = useState(false);
-  const [adminPlanDrafts, setAdminPlanDrafts] = useState<Record<string, string>>({});
+
   const [subscriptionPlans, setSubscriptionPlans] = useState<AdminSubscriptionPlanItem[]>([]);
   const [planDrafts, setPlanDrafts] = useState<Record<string, SubscriptionPlanDraft>>({});
   const [loadingSubscriptionPlans, setLoadingSubscriptionPlans] = useState(false);
@@ -1021,6 +1109,7 @@ const [email, setEmail] = useState("");
   const [loadingAdminSubscriptionPayments, setLoadingAdminSubscriptionPayments] = useState(false);
   const [subscriptionPaymentSearch, setSubscriptionPaymentSearch] = useState("");
   const [subscriptionPaymentMethodFilter, setSubscriptionPaymentMethodFilter] = useState<"all" | "manual" | "momo" | "bank" | "cash" | "paystack">("all");
+
 const [uploadingProductImage, setUploadingProductImage] = useState(false);
 const [error, setError] = useState("");
 
@@ -1031,7 +1120,14 @@ const [error, setError] = useState("");
       res = await fetch(`${API_URL}${path}`, {
         ...options,
         headers: {
-          "Content-Type": "application/json",
+          ...(
+            options.body instanceof FormData
+              ? {}
+              : {
+                  "Content-Type":
+                    "application/json",
+                }
+          ),
           Authorization: `Bearer ${token}`,
           ...(options.headers || {}),
         },
@@ -1340,34 +1436,35 @@ try {
       return;
     }
 
+    const validationError =
+      getImageUploadValidationError(
+        file,
+      );
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     setError("");
     setMessage("");
     setUploadingProductImage(true);
 
     try {
-      const dataBase64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
+      const formData = new FormData();
 
-        reader.onload = () => {
-          const result = String(reader.result || "");
-          const base64 = result.includes(",") ? result.split(",")[1] : result;
-          resolve(base64);
-        };
-
-        reader.onerror = () => reject(new Error("Could not read image file."));
-        reader.readAsDataURL(file);
-      });
+      formData.append(
+        "file",
+        file,
+        file.name,
+      );
 
       const data = await apiFetch(
         `/stores/${selectedStore.id}/uploads/product-image`,
         {
           method: "POST",
-          body: JSON.stringify({
-            filename: file.name,
-            content_type: file.type,
-            data_base64: dataBase64,
-          }),
-        }
+          body: formData,
+        },
       );
 
       setProductForm((prev) => ({
@@ -1375,13 +1472,20 @@ try {
         image_url: data.image_url,
       }));
 
-      setMessage("Image uploaded successfully.");
+      setMessage(
+        "Image uploaded successfully.",
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Image upload failed");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Image upload failed",
+      );
     } finally {
       setUploadingProductImage(false);
     }
   }
+
   function isProductSubmitDisabled() {
     return (
       loadingSubscriptionUsage ||
@@ -1439,7 +1543,9 @@ try {
       name: productForm.name,
       slug: productForm.slug || makeSlug(productForm.name),
       description: productForm.description || null,
-      image_url: productForm.image_url || null,
+      image_url: toPortableDashboardMediaReference(
+        productForm.image_url,
+      ) || null,
       product_type: productForm.product_type || "physical",
       price: productForm.price,
       stock_quantity:
@@ -1533,7 +1639,10 @@ try {
   }
 
 
-  async function uploadStoreImage(file: File, imageType: "logo" | "banner") {
+  async function uploadStoreImage(
+    file: File,
+    imageType: "logo" | "banner",
+  ) {
     if (!selectedStore) {
       setError("Please select a store first.");
       return;
@@ -1549,43 +1658,63 @@ try {
       return;
     }
 
+    const validationError =
+      getImageUploadValidationError(
+        file,
+      );
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     setError("");
     setMessage("");
-try {
-      const dataBase64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
 
-        reader.onload = () => {
-          const result = String(reader.result || "");
-          const base64 = result.includes(",") ? result.split(",")[1] : result;
-          resolve(base64);
-        };
+    try {
+      const formData = new FormData();
 
-        reader.onerror = () => reject(new Error("Could not read image file."));
-        reader.readAsDataURL(file);
-      });
+      formData.append(
+        "file",
+        file,
+        file.name,
+      );
+
+      formData.append(
+        "image_type",
+        imageType,
+      );
 
       const data = await apiFetch(
         `/stores/${selectedStore.id}/uploads/store-image`,
         {
           method: "POST",
-          body: JSON.stringify({
-            filename: file.name,
-            content_type: file.type,
-            image_type: imageType,
-            data_base64: dataBase64,
-          }),
-        }
+          body: formData,
+        },
       );
 
       setStoreForm((prev) => ({
         ...prev,
-        [imageType === "logo" ? "logo_url" : "banner_url"]: data.image_url,
+        [
+          imageType === "logo"
+            ? "logo_url"
+            : "banner_url"
+        ]: data.image_url,
       }));
 
-      setMessage(`${imageType === "logo" ? "Logo" : "Banner"} uploaded successfully.`);
+      setMessage(
+        `${
+          imageType === "logo"
+            ? "Logo"
+            : "Banner"
+        } uploaded successfully.`,
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Image upload failed");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Image upload failed",
+      );
     }
   }
 
@@ -1622,6 +1751,7 @@ try {
         drafts[plan.name] = {
           display_name: plan.display_name,
           monthly_fee: String(plan.monthly_fee),
+          is_quote_only: plan.is_quote_only,
           product_limit:
             plan.product_limit === null || plan.product_limit === undefined
               ? ""
@@ -1675,6 +1805,7 @@ try {
         body: JSON.stringify({
           display_name: draft.display_name,
           monthly_fee: monthlyFee,
+          is_quote_only: draft.is_quote_only,
           product_limit: productLimit,
           can_upload_images: draft.can_upload_images,
           can_use_custom_domain: draft.can_use_custom_domain,
@@ -1688,7 +1819,6 @@ try {
       );
 
       await loadAdminSubscriptionSummary();
-      await loadAdminStores();
 
       if (selectedStore?.id) {
         await loadSubscriptionUsage(selectedStore.id);
@@ -1803,108 +1933,6 @@ try {
     }
   }
 
-  function exportAdminStoresCsv() {
-    if (adminStores.length === 0) {
-      setError("No sellers to export. Refresh sellers first.");
-      return;
-    }
-
-    const storesToExport = filteredAdminStores.length > 0 ? filteredAdminStores : adminStores;
-
-    const headers = [
-      "Store Name",
-      "Store Slug",
-      "Owner Name",
-      "Owner Email",
-      "Plan",
-      "Status",
-      "Monthly Fee",
-      "Expires At",
-      "Time Left",
-      "Is Active",
-      "Is Suspended",
-    ];
-
-    const rows = storesToExport.map((store) => {
-      const computedStatus = getComputedSubscriptionStatus(
-        store.subscription_status,
-        store.subscription_ends_at,
-        store.is_suspended
-      );
-
-      return [
-        store.name,
-        store.slug,
-        store.owner_name,
-        store.owner_email,
-        store.plan_name,
-        computedStatus,
-        String(store.monthly_fee),
-        store.subscription_ends_at || "",
-        getSubscriptionTimeLabel(
-          store.subscription_status,
-          store.subscription_ends_at,
-          store.is_suspended
-        ),
-        store.is_active ? "Yes" : "No",
-        store.is_suspended ? "Yes" : "No",
-      ];
-    });
-
-    const escapeCsv = (value: string) =>
-      `"${value.replace(/"/g, '""')}"`;
-
-    const csv = [headers, ...rows]
-      .map((row) => row.map(escapeCsv).join(","))
-      .join("\n");
-
-    const blob = new Blob([csv], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    link.href = url;
-    link.download = `seller-stores-${new Date()
-      .toISOString()
-      .slice(0, 10)}.csv`;
-
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    URL.revokeObjectURL(url);
-    setMessage("Seller list exported.");
-  }
-  async function loadAdminStores() {
-    if (!isPlatformAdmin) {
-      return;
-    }
-
-    setLoadingAdminStores(true);
-    setError("");
-
-    try {
-      const data: AdminStoreListItem[] = await apiFetch("/admin/stores");
-      setAdminStores(data);
-
-      setAdminPlanDrafts((prev) => {
-        const next = { ...prev };
-
-        data.forEach((store) => {
-          next[store.id] = store.plan_name || "starter";
-        });
-
-        return next;
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load admin stores.");
-    } finally {
-      setLoadingAdminStores(false);
-    }
-  }
-
   function exportSubscriptionPaymentsCsv() {
     if (adminSubscriptionPayments.length === 0) {
       setError("No subscription payments to export. Refresh payments first.");
@@ -1987,314 +2015,6 @@ try {
       setLoadingAdminSubscriptionPayments(false);
     }
   }
-  async function adminChangeStorePlan(store: AdminStoreListItem) {
-    const nextPlanName = (adminPlanDrafts[store.id] || store.plan_name || "starter")
-      .toLowerCase()
-      .trim();
-
-    if (!nextPlanName) {
-      setError("Please select a plan.");
-      return;
-    }
-
-    const selectedPlan = subscriptionPlans.find((plan) => plan.name === nextPlanName);
-
-    if (!selectedPlan) {
-      setError("Selected plan not found. Refresh subscription plans and try again.");
-      return;
-    }
-
-    if (nextPlanName === store.plan_name) {
-      setMessage(`${store.name} is already on the ${formatPlanName(store.plan_name)} plan.`);
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Change ${store.name} from ${formatPlanName(store.plan_name)} to ${selectedPlan.display_name}? Monthly fee will become ${formatMonthlyFee(selectedPlan.monthly_fee)}.`
-    );
-
-    if (!confirmed) {
-      setAdminPlanDrafts((prev) => ({
-        ...prev,
-        [store.id]: store.plan_name || "starter",
-      }));
-      return;
-    }
-
-    setError("");
-    setMessage("");
-try {
-      const updatedStore = await apiFetch(`/admin/stores/${store.id}/plan`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          plan_name: nextPlanName,
-        }),
-      });
-
-      setAdminStores((prev) =>
-        prev.map((item) =>
-          item.id === store.id
-            ? {
-                ...item,
-                plan_name: updatedStore.plan_name,
-                monthly_fee: updatedStore.monthly_fee,
-                subscription_status: updatedStore.subscription_status,
-                subscription_ends_at: updatedStore.subscription_ends_at,
-              }
-            : item
-        )
-      );
-
-      setAdminPlanDrafts((prev) => ({
-        ...prev,
-        [store.id]: updatedStore.plan_name,
-      }));
-
-      setStores((prev) =>
-        prev.map((item) =>
-          item.id === store.id
-            ? {
-                ...item,
-                plan_name: updatedStore.plan_name,
-                monthly_fee: updatedStore.monthly_fee,
-                subscription_status: updatedStore.subscription_status,
-                subscription_ends_at: updatedStore.subscription_ends_at,
-              }
-            : item
-        )
-      );
-
-      setSelectedStore((prev) =>
-        prev && prev.id === store.id
-          ? {
-              ...prev,
-              plan_name: updatedStore.plan_name,
-              monthly_fee: updatedStore.monthly_fee,
-              subscription_status: updatedStore.subscription_status,
-              subscription_ends_at: updatedStore.subscription_ends_at,
-            }
-          : prev
-      );
-
-      await loadAdminSubscriptionSummary();
-
-      if (selectedStore?.id === store.id) {
-        await loadSubscriptionUsage(store.id);
-      }
-
-      setMessage(`${store.name} moved to ${formatPlanName(updatedStore.plan_name)} plan.`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not change seller plan.");
-    }
-  }
-  async function adminSetStoreSuspension(store: AdminStoreListItem, suspend: boolean) {
-    const action = suspend ? "suspend" : "reactivate";
-
-    const confirmed = window.confirm(
-      suspend
-        ? `Suspend ${store.name}? Customers will not be able to order from this store.`
-        : `Reactivate ${store.name}? Customers will be able to view and order again.`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setError("");
-    setMessage("");
-try {
-      await apiFetch(`/admin/stores/${store.id}/status`, {
-        method: "PATCH",
-        body: JSON.stringify(
-          suspend
-            ? {
-                subscription_status: "suspended",
-                is_suspended: true,
-                note: "Suspended from dashboard",
-              }
-            : {
-                subscription_status: "active",
-                is_suspended: false,
-                is_active: true,
-                note: "Reactivated from dashboard",
-              }
-        ),
-      });
-
-      await loadAdminStores();
-      await loadAdminSubscriptionSummary();
-      await loadStores();
-
-      setMessage(
-        suspend
-          ? "Seller store suspended."
-          : "Seller store reactivated."
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : `Could not ${action} seller store.`);
-    }
-  }
-  function getSubscriptionPlanByName(planName?: string | null) {
-    const cleanPlanName = (planName || "").toLowerCase().trim();
-
-    return subscriptionPlans.find((plan) => plan.name === cleanPlanName);
-  }
-
-  function getMonthlyFeeForPlan(
-    planName?: string | null,
-    fallbackFee?: string | number | null
-  ) {
-    const plan = getSubscriptionPlanByName(planName);
-    const fee = Number(plan?.monthly_fee ?? fallbackFee ?? 0);
-
-    return Number.isFinite(fee) && fee >= 0 ? fee : 0;
-  }
-  async function extendAdminStoreSubscription(storeId: string) {
-    const store = adminStores.find((item) => item.id === storeId);
-    const planName = (store?.plan_name || "business").toLowerCase().trim();
-    const defaultMonthlyFee = getMonthlyFeeForPlan(planName, store?.monthly_fee ?? 100);
-
-    const amountText = window.prompt("Amount paid in GHS?", String(defaultMonthlyFee));
-
-    if (amountText === null) {
-      return;
-    }
-
-    const amountPaid = Number(amountText);
-
-    if (!Number.isFinite(amountPaid) || amountPaid < 0) {
-      setError("Please enter a valid amount paid.");
-      return;
-    }
-
-    const method = window.prompt("Payment method? manual, momo, bank, cash, or paystack", "momo");
-
-    if (method === null) {
-      return;
-    }
-
-    const cleanMethod = method.trim().toLowerCase();
-
-    if (!["manual", "momo", "bank", "cash", "paystack"].includes(cleanMethod)) {
-      setError("Payment method must be manual, momo, bank, cash, or paystack.");
-      return;
-    }
-
-    const reference = window.prompt("Payment reference? Example: MoMo transaction ID", "") || "";
-    const note = window.prompt("Payment note?", "Seller subscription payment received") || "";
-
-    const confirmed = window.confirm(
-      `Extend this seller subscription by 30 days for GHS ${amountPaid.toFixed(2)} via ${cleanMethod}?`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setError("");
-    setMessage("");
-try {
-      await apiFetch(`/admin/stores/${storeId}/subscription/extend`, {
-        method: "POST",
-        body: JSON.stringify({
-          plan_name: planName,
-          amount_paid: amountPaid,
-          extend_days: 30,
-          payment_method: cleanMethod,
-          payment_reference: reference.trim() || null,
-          note: note.trim() || null,
-          mark_active: true,
-        }),
-      });
-
-      await loadAdminStores();
-      await loadAdminSubscriptionSummary();
-      await loadAdminSubscriptionPayments();
-      setMessage("Seller subscription extended and payment recorded.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not extend seller subscription.");
-    }
-  }
-  async function extendSelectedStoreSubscription() {
-    if (!selectedStore) {
-      setError("Please select a store first.");
-      return;
-    }
-
-    const planName = (selectedStore.plan_name || "business").toLowerCase().trim();
-    const defaultMonthlyFee = getMonthlyFeeForPlan(planName, selectedStore.monthly_fee ?? 100);
-
-    const amountText = window.prompt("Amount paid in GHS?", String(defaultMonthlyFee));
-
-    if (amountText === null) {
-      return;
-    }
-
-    const amountPaid = Number(amountText);
-
-    if (!Number.isFinite(amountPaid) || amountPaid < 0) {
-      setError("Please enter a valid amount paid.");
-      return;
-    }
-
-    const method = window.prompt("Payment method? manual, momo, bank, cash, or paystack", "momo");
-
-    if (method === null) {
-      return;
-    }
-
-    const cleanMethod = method.trim().toLowerCase();
-
-    if (!["manual", "momo", "bank", "cash", "paystack"].includes(cleanMethod)) {
-      setError("Payment method must be manual, momo, bank, cash, or paystack.");
-      return;
-    }
-
-    const reference = window.prompt("Payment reference? Example: MoMo transaction ID", "") || "";
-    const note = window.prompt("Payment note?", "Seller subscription payment received") || "";
-
-    const confirmed = window.confirm(
-      `Extend ${selectedStore.name} by 30 days for GHS ${amountPaid.toFixed(2)} via ${cleanMethod}?`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setError("");
-    setMessage("");
-try {
-      const updatedStore = await apiFetch(
-        `/admin/stores/${selectedStore.id}/subscription/extend`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            plan_name: planName,
-            amount_paid: amountPaid,
-            extend_days: 30,
-            payment_method: cleanMethod,
-            payment_reference: reference.trim() || null,
-            note: note.trim() || null,
-            mark_active: true,
-          }),
-        }
-      );
-
-      setSelectedStore(updatedStore);
-
-      setStores((prev) =>
-        prev.map((store) => (store.id === updatedStore.id ? updatedStore : store))
-      );
-
-      await loadAdminStores();
-      await loadAdminSubscriptionSummary();
-      await loadAdminSubscriptionPayments();
-
-      setMessage("Subscription extended and payment recorded.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not extend subscription.");
-    }
-  }
   async function saveStoreSettings(e: React.FormEvent) {
     e.preventDefault();
 
@@ -2334,8 +2054,12 @@ try {
       slug: makeSlug(storeForm.slug),
       bio: storeForm.bio.trim() || null,
       whatsapp_number: whatsappNumber,
-      logo_url: storeForm.logo_url || null,
-      banner_url: storeForm.banner_url || null,
+      logo_url: toPortableDashboardMediaReference(
+        storeForm.logo_url,
+      ) || null,
+      banner_url: toPortableDashboardMediaReference(
+        storeForm.banner_url,
+      ) || null,
       category: storeForm.category.trim() || null,
     };
 
@@ -2583,43 +2307,6 @@ try {
     activeTab,
   ]);
 
-  const filteredAdminStores = adminStores.filter((store) => {
-    const computedStatus = getComputedSubscriptionStatus(
-      store.subscription_status,
-      store.subscription_ends_at,
-      store.is_suspended
-    );
-
-    const searchText = adminStoreSearch.trim().toLowerCase();
-
-    const matchesSearch =
-      !searchText ||
-      store.name.toLowerCase().includes(searchText) ||
-      store.slug.toLowerCase().includes(searchText) ||
-      store.owner_name.toLowerCase().includes(searchText) ||
-      store.owner_email.toLowerCase().includes(searchText);
-
-    if (!matchesSearch) {
-      return false;
-    }
-
-    if (adminStoreFilter === "all") {
-      return true;
-    }
-
-    if (adminStoreFilter === "expiring") {
-      return (
-        computedStatus === "active" &&
-        getSubscriptionTimeClass(
-          store.subscription_status,
-          store.subscription_ends_at,
-          store.is_suspended
-        ) === "warning"
-      );
-    }
-
-    return computedStatus === adminStoreFilter;
-  });
   const filteredSubscriptionPayments = adminSubscriptionPayments.filter((payment) => {
     const searchText = subscriptionPaymentSearch.trim().toLowerCase();
 
@@ -2749,7 +2436,6 @@ try {
               ) {
                 loadSubscriptionPlans();
                 loadAdminSubscriptionSummary();
-                loadAdminStores();
                 loadAdminSubscriptionPayments();
               }
             }}
@@ -2759,7 +2445,19 @@ try {
         </div>
 
         {error && <div className="error-box">{error}</div>}
-        {message && <div className="success-box">{message}</div>}
+        {message && (
+          <div
+            className={
+              activeTab === "products"
+                ? "success-box success-box-products"
+                : "success-box"
+            }
+            role="status"
+            aria-live="polite"
+          >
+            {message}
+          </div>
+        )}
 
         {/* SELLER SUBSCRIPTION WARNING BANNER */}
         {!isAdminWorkspace &&
@@ -2768,8 +2466,9 @@ try {
           <div
             className={`subscription-warning-banner ${getSubscriptionTimeClass(
               selectedStore.subscription_status,
+              selectedStore.trial_ends_at,
               selectedStore.subscription_ends_at,
-              selectedStore.is_suspended
+              selectedStore.is_suspended,
             )}`}
           >
             <div>
@@ -2781,8 +2480,9 @@ try {
               <strong>
                 {getSubscriptionTimeLabel(
                   selectedStore.subscription_status,
+                  selectedStore.trial_ends_at,
                   selectedStore.subscription_ends_at,
-                  selectedStore.is_suspended
+                  selectedStore.is_suspended,
                 )}
               </strong>
 
@@ -2889,49 +2589,7 @@ try {
                 onSellerCreated={() =>
                   loadAdminSellers(false)
                 }
-                adminStores={adminStores}
-                filteredAdminStores={filteredAdminStores}
-                adminStoreSearch={adminStoreSearch}
-                setAdminStoreSearch={setAdminStoreSearch}
-                adminStoreFilter={adminStoreFilter}
-                setAdminStoreFilter={setAdminStoreFilter}
-                adminPlanDrafts={adminPlanDrafts}
-                setAdminPlanDrafts={setAdminPlanDrafts}
                 subscriptionPlans={subscriptionPlans}
-                loadingSubscriptionPlans={
-                  loadingSubscriptionPlans
-                }
-                loadAdminStores={loadAdminStores}
-                loadingAdminStores={loadingAdminStores}
-                exportAdminStoresCsv={
-                  exportAdminStoresCsv
-                }
-                formatPlanName={formatPlanName}
-                formatMonthlyFee={formatMonthlyFee}
-                formatSubscriptionDate={
-                  formatSubscriptionDate
-                }
-                getComputedSubscriptionStatus={
-                  getComputedSubscriptionStatus
-                }
-                getSubscriptionTimeClass={
-                  getSubscriptionTimeClass
-                }
-                getSubscriptionTimeLabel={
-                  getSubscriptionTimeLabel
-                }
-                extendSelectedStoreSubscription={
-                  extendSelectedStoreSubscription
-                }
-                extendAdminStoreSubscription={
-                  extendAdminStoreSubscription
-                }
-                adminChangeStorePlan={
-                  adminChangeStorePlan
-                }
-                adminSetStoreSuspension={
-                  adminSetStoreSuspension
-                }
               />
             )}
 

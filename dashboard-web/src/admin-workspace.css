@@ -2631,3 +2631,363 @@ body {
     grid-template-columns: 76px minmax(0, 1fr);
   }
 }
+/* === STOREPLUG SELLER DETAIL MOBILE POLISH START === */
+
+.seller-store-charge small {
+  display: block;
+  margin-top: 0.25rem;
+  color: #64748b;
+  font-size: 0.64rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+@media (max-width: 760px) {
+  .seller-account-summary {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 0.5rem !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 0.1rem 0 0.45rem !important;
+    scroll-padding-inline: 0.1rem;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .seller-account-summary::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .seller-account-summary button {
+    flex: 0 0 118px !important;
+    min-width: 118px !important;
+    min-height: 52px !important;
+    padding: 0.62rem 0.72rem !important;
+    border-radius: 14px !important;
+  }
+
+  .seller-account-summary button strong {
+    font-size: 1rem !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .seller-detail-page {
+    gap: 0.62rem;
+  }
+
+  .seller-detail-toolbar {
+    gap: 0.45rem;
+  }
+
+  .seller-detail-back,
+  .seller-detail-refresh {
+    min-height: 40px;
+    padding: 0.52rem 0.58rem;
+    border-radius: 11px;
+    font-size: 0.7rem;
+  }
+
+  .seller-detail-hero {
+    gap: 0.68rem;
+    padding: 0.75rem;
+    border-radius: 15px;
+  }
+
+  .seller-detail-identity {
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 0.62rem;
+  }
+
+  .seller-detail-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+    font-size: 0.78rem;
+  }
+
+  .seller-detail-identity h2 {
+    font-size: 1.18rem;
+    line-height: 1.12;
+  }
+
+  .seller-detail-identity p:not(.seller-page-eyebrow),
+  .seller-detail-identity span {
+    margin-top: 0.22rem;
+    font-size: 0.68rem;
+    line-height: 1.35;
+  }
+
+  .seller-detail-status-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.36rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0.2rem;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .seller-detail-status-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .seller-detail-status-row .seller-status-pill {
+    flex: 0 0 auto;
+    min-height: 30px;
+    padding: 0.32rem 0.56rem;
+    font-size: 0.61rem;
+  }
+
+  .seller-detail-primary-actions button {
+    min-height: 40px;
+    padding: 0.55rem 0.72rem;
+    border-radius: 11px;
+    font-size: 0.72rem;
+  }
+
+  .seller-detail-grid {
+    gap: 0.62rem;
+  }
+
+  .seller-detail-panel {
+    gap: 0.68rem;
+    padding: 0.75rem;
+    border-radius: 15px;
+  }
+
+  .seller-detail-panel-heading {
+    gap: 0.45rem;
+  }
+
+  .seller-detail-panel-heading h3 {
+    margin-top: 0.2rem;
+    font-size: 0.94rem;
+  }
+
+  .seller-detail-panel-heading p:not(.seller-page-eyebrow) {
+    margin-top: 0.3rem;
+    font-size: 0.68rem;
+    line-height: 1.4;
+  }
+
+  .seller-detail-count {
+    min-width: 30px;
+    height: 30px;
+    border-radius: 10px;
+    font-size: 0.68rem;
+  }
+
+  .seller-detail-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.42rem;
+  }
+
+  .seller-detail-facts > div {
+    min-height: 0;
+    justify-content: start;
+    gap: 0.18rem;
+    padding: 0.55rem;
+    border-radius: 11px;
+  }
+
+  .seller-account-facts > div:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .seller-detail-facts span,
+  .seller-detail-store-facts span {
+    font-size: 0.51rem;
+    letter-spacing: 0.065em;
+  }
+
+  .seller-detail-facts strong,
+  .seller-detail-store-facts strong {
+    font-size: 0.65rem;
+    line-height: 1.32;
+  }
+
+  .seller-detail-store-card {
+    gap: 0.62rem;
+    padding: 0.68rem;
+    border-radius: 13px;
+  }
+
+  .seller-detail-store-head h4 {
+    font-size: 0.82rem;
+  }
+
+  .seller-detail-store-head p {
+    margin-top: 0.18rem;
+    font-size: 0.62rem;
+  }
+
+  .seller-store-state {
+    padding: 0.24rem 0.48rem;
+    font-size: 0.57rem;
+  }
+
+  .seller-detail-store-facts {
+    gap: 0.42rem 0.55rem;
+  }
+
+  .seller-store-charge small {
+    margin-top: 0.2rem;
+    font-size: 0.56rem;
+  }
+
+  .seller-store-subscription {
+    gap: 0.65rem;
+    margin-top: 0.65rem;
+    padding: 0.72rem;
+    border-radius: 13px;
+  }
+
+  .seller-store-subscription strong {
+    font-size: 0.8rem;
+  }
+
+  .seller-store-subscription p:not(.seller-page-eyebrow) {
+    margin-top: 0.22rem;
+    font-size: 0.67rem;
+    line-height: 1.4;
+  }
+
+  .seller-store-publication {
+    gap: 0.62rem;
+    margin-top: 0.65rem;
+    padding-top: 0.65rem;
+  }
+
+  .seller-store-publication strong {
+    font-size: 0.78rem;
+  }
+
+  .seller-store-publication p {
+    margin-top: 0.2rem;
+    font-size: 0.67rem;
+    line-height: 1.4;
+  }
+
+  .seller-detail-empty {
+    padding: 0.68rem;
+    border-radius: 12px;
+    font-size: 0.68rem;
+  }
+
+  .seller-payment-history {
+    gap: 0.55rem;
+  }
+
+  .seller-payment-history article {
+    padding: 0.7rem;
+    border-radius: 12px;
+  }
+
+  .seller-payment-main {
+    gap: 0.5rem;
+  }
+
+  .seller-payment-main strong {
+    margin-top: 0.12rem;
+    font-size: 0.92rem;
+  }
+
+  .seller-payment-method {
+    padding: 0.28rem 0.45rem;
+    font-size: 0.56rem;
+  }
+
+  .seller-payment-history dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem 0.6rem;
+    margin-top: 0.58rem;
+  }
+
+  .seller-payment-history dl > div {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.16rem;
+    padding-top: 0.34rem;
+  }
+
+  .seller-payment-history dd {
+    font-size: 0.62rem;
+    text-align: left;
+  }
+
+  .seller-detail-timeline,
+  .seller-invitation-history {
+    gap: 0.5rem;
+  }
+
+  .seller-detail-timeline article,
+  .seller-invitation-history article {
+    padding: 0.64rem;
+    border-radius: 12px;
+  }
+
+  .seller-detail-timeline p,
+  .seller-detail-timeline blockquote {
+    font-size: 0.66rem;
+  }
+
+  .seller-detail-timeline small {
+    margin-top: 0.35rem;
+    font-size: 0.58rem;
+  }
+
+  .seller-invitation-history dl {
+    gap: 0.28rem;
+  }
+
+  .seller-invitation-history dl > div {
+    grid-template-columns: 62px minmax(0, 1fr);
+    gap: 0.35rem;
+    padding-top: 0.28rem;
+  }
+
+  .seller-invitation-history dt {
+    font-size: 0.49rem;
+  }
+
+  .seller-invitation-history dd {
+    font-size: 0.58rem;
+  }
+}
+
+/* === STOREPLUG SELLER DETAIL MOBILE POLISH END === */
+
+
+/* === STOREPLUG SELLER FILTER FINAL MOBILE FIX START === */
+@media (max-width: 760px) {
+  .seller-account-summary {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .seller-account-summary button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 52px !important;
+    padding: 0.62rem 0.72rem !important;
+    gap: 0.55rem !important;
+  }
+
+  .seller-account-summary button span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .seller-account-summary button strong {
+    flex: 0 0 auto;
+  }
+}
+/* === STOREPLUG SELLER FILTER FINAL MOBILE FIX END === */

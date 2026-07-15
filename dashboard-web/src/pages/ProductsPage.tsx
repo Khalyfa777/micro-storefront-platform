@@ -1,4 +1,6 @@
+import { useState } from "react";
 import type { Dispatch, FormEvent, SetStateAction } from "react";
+import { resolveDashboardMediaUrl } from "../utils/api-url";
 
 type Product = {
   id: string;
@@ -26,10 +28,53 @@ type ProductForm = {
   is_featured: boolean;
 };
 
+type ProductThumbnailProps = {
+  product: Product;
+};
+
+function ProductThumbnail({
+  product,
+}: ProductThumbnailProps) {
+  const [failedImageUrl, setFailedImageUrl] =
+    useState<string | null>(null);
+
+  const imageUrl = resolveDashboardMediaUrl(
+    product.image_url,
+  ) || null;
+  const imageFailed =
+    imageUrl !== null &&
+    failedImageUrl === imageUrl;
+
+  const initial =
+    product.name.trim().slice(0, 1).toUpperCase()
+    || "P";
+
+  return (
+    <div className="product-thumb-box">
+      {imageUrl && !imageFailed ? (
+        <img
+          src={imageUrl}
+          alt={product.name}
+          loading="lazy"
+          onError={() => setFailedImageUrl(imageUrl)}
+        />
+      ) : (
+        <span
+          className="product-thumb-fallback"
+          aria-hidden="true"
+        >
+          {initial}
+        </span>
+      )}
+    </div>
+  );
+}
+
 type StoreSubscriptionUsage = {
   plan_name: string;
   display_name: string;
   monthly_fee: string | number;
+  is_quote_only: boolean;
   product_limit?: number | null;
   active_products: number;
   remaining_products?: number | null;
@@ -85,6 +130,16 @@ export function ProductsPage({
   toggleProductActive,
   deleteProduct,
 }: ProductsPageProps) {
+  const [
+    openProductActionsId,
+    setOpenProductActionsId,
+  ] = useState<string | null>(null);
+
+  const productPreviewUrl =
+    resolveDashboardMediaUrl(
+      productForm.image_url,
+    );
+
   return (
           <div className="products-layout premium-products-page">
             <div className="product-toolbar">
@@ -198,9 +253,12 @@ export function ProductsPage({
                   </p>
                 )}
 
-                {productForm.image_url && (
+                {productPreviewUrl && (
                   <div className="uploaded-image-preview">
-                    <img src={productForm.image_url} alt="Product preview" />
+                    <img
+                      src={productPreviewUrl}
+                      alt="Product preview"
+                    />
                     <p>Image uploaded successfully</p>
                   </div>
                 )}
@@ -308,13 +366,7 @@ export function ProductsPage({
               {products.map((product) => (
                 <article className="product-card premium-product-card" key={product.id}>
                   <div className="product-card-top">
-                    <div className="product-thumb-box">
-                      {product.image_url ? (
-                        <img src={product.image_url} alt={product.name} />
-                      ) : (
-                        <span>{product.name.slice(0, 1).toUpperCase()}</span>
-                      )}
-                    </div>
+                    <ProductThumbnail product={product} />
 
                     <div className="product-main-info">
                       <div className="product-title-row">
@@ -332,11 +384,14 @@ export function ProductsPage({
                         </div>
                       </div>
 
-                      {product.description && (
-                        <p className="product-desc">{product.description}</p>
-                      )}
                     </div>
                   </div>
+
+                  {product.description && (
+                    <p className="product-desc">
+                      {product.description}
+                    </p>
+                  )}
 
                   <div className="product-card-stats">
                     <div>
@@ -350,18 +405,68 @@ export function ProductsPage({
                     </div>
                   </div>
 
-                  <div className="product-card-actions">
-                    <button type="button" className="product-action-btn" onClick={() => startEditingProduct(product)}>
-                      Edit
+                  <div className="product-card-actions product-card-actions-compact">
+                    <button
+                      type="button"
+                      className="product-action-btn product-edit-btn"
+                      onClick={() => {
+                        setOpenProductActionsId(null);
+                        startEditingProduct(product);
+                      }}
+                    >
+                      Edit product
                     </button>
 
-                    <button type="button" className="product-action-btn" onClick={() => toggleProductActive(product)}>
-                      {product.is_active ? "Deactivate" : "Activate"}
+                    <button
+                      type="button"
+                      className="product-action-btn product-more-actions-trigger"
+                      aria-expanded={
+                        openProductActionsId === product.id
+                      }
+                      aria-controls={
+                        `product-actions-${product.id}`
+                      }
+                      onClick={() => {
+                        setOpenProductActionsId(
+                          (currentProductId) =>
+                            currentProductId === product.id
+                              ? null
+                              : product.id,
+                        );
+                      }}
+                    >
+                      Actions
+                      <span aria-hidden="true">...</span>
                     </button>
 
-                    <button type="button" className="product-action-btn danger" onClick={() => deleteProduct(product)}>
-                      Remove
-                    </button>
+                    {openProductActionsId === product.id && (
+                      <div
+                        className="product-more-actions-panel"
+                        id={`product-actions-${product.id}`}
+                      >
+                        <button
+                          type="button"
+                          className="product-action-btn"
+                          onClick={() => {
+                            setOpenProductActionsId(null);
+                            void toggleProductActive(product);
+                          }}
+                        >
+                          {product.is_active ? "Deactivate" : "Activate"}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="product-action-btn danger"
+                          onClick={() => {
+                            setOpenProductActionsId(null);
+                            void deleteProduct(product);
+                          }}
+                        >
+                          Remove product
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </article>
               ))}

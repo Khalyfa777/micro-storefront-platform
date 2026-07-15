@@ -1,6 +1,10 @@
 import OrderForm from "../../../components/OrderForm";
+import {
+  resolveStorefrontApiBaseUrl,
+} from "../../../lib/api-url";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_URL =
+  resolveStorefrontApiBaseUrl();
 
 type Product = {
   id: string;

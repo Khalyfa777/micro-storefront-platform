@@ -27,6 +27,9 @@ export type AdminSellerStoreSummary = {
   plan_name: string;
   subscription_status: string;
   monthly_fee: string | number;
+  active_product_count: number;
+  publish_ready: boolean;
+  publish_blockers: string[];
   trial_ends_at: string | null;
   subscription_ends_at: string | null;
   last_payment_at: string | null;
