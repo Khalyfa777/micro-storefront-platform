@@ -3,6 +3,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { StoreProfilePage } from "./pages/StoreProfilePage";
+import { SecurityPage } from "./pages/SecurityPage";
 import { AdminSummaryPage } from "./pages/AdminSummaryPage";
 import { AdminPlansPage } from "./pages/AdminPlansPage";
 import { AdminPaymentsPage } from "./pages/AdminPaymentsPage";
@@ -869,6 +870,7 @@ type DashboardTab =
   | "orders"
   | "products"
   | "settings"
+  | "security"
   | "adminSummary"
   | "adminSellers"
   | "adminPlans"
@@ -878,6 +880,7 @@ const dashboardTabs: DashboardTab[] = [
   "orders",
   "products",
   "settings",
+  "security",
   "adminSummary",
   "adminSellers",
   "adminPlans",
@@ -895,6 +898,7 @@ const merchantTabs: DashboardTab[] = [
   "orders",
   "products",
   "settings",
+  "security",
 ];
 
 const dashboardPathTabs: Record<string, DashboardTab> = {
@@ -2353,10 +2357,12 @@ try {
     <DashboardShell
       isSidebarOpen={isSidebarOpen}
       selectedStoreName={
-        isAdminWorkspace
-          ? "Platform Admin"
-          : selectedStore?.name ||
-            "Merchant dashboard"
+        activeTab === "security"
+          ? "Account security"
+          : isAdminWorkspace
+            ? "Platform Admin"
+            : selectedStore?.name ||
+              "Merchant dashboard"
       }
       onOpenSidebar={() => setIsSidebarOpen(true)}
       sidebar={
@@ -2403,12 +2409,15 @@ try {
                     ? "Plan settings"
                     : activeTab === "adminPayments"
                       ? "Payments"
-                      : selectedStore?.name || "Dashboard"}
+                      : activeTab === "security"
+                        ? "Security"
+                        : selectedStore?.name || "Dashboard"}
             </h1>
             <p className="muted">
               {activeTab === "orders" && "Track customer orders and payment status."}
               {activeTab === "products" && "Add, edit, and manage your products."}
               {activeTab === "settings" && "Update your public store profile."}
+              {activeTab === "security" && "Change your password and protect active sessions."}
               {activeTab === "adminSummary" && "Revenue, subscriptions, and platform health."}
               {activeTab === "adminSellers" && "Manage seller accounts, onboarding, stores, and access."}
               {activeTab === "adminPlans" && "Control plan pricing, product limits, and feature access."}
@@ -2416,33 +2425,36 @@ try {
             </p>
           </div>
 
-          <button
-            onClick={() => {
-              if (selectedStore) {
-                loadStores();
-                loadOrders(selectedStore.id);
-                loadProducts(selectedStore.id);
-              }
+          {activeTab !== "security" && (
+            <button
+              onClick={() => {
+                if (selectedStore) {
+                  loadStores();
+                  loadOrders(selectedStore.id);
+                  loadProducts(selectedStore.id);
+                }
 
-              if (
-                isPlatformAdmin &&
-                activeTab === "adminSellers"
-              ) {
-                loadAdminSellers();
-                loadSubscriptionPlans();
-              } else if (
-                isPlatformAdmin &&
-                ["adminSummary", "adminPlans", "adminPayments"].includes(activeTab)
-              ) {
-                loadSubscriptionPlans();
-                loadAdminSubscriptionSummary();
-                loadAdminSubscriptionPayments();
-              }
-            }}
-          >
-            {isPlatformAdmin && ["adminSummary", "adminSellers", "adminPlans", "adminPayments"].includes(activeTab) ? "Refresh platform data" : "Refresh"}
-          </button>
+                if (
+                  isPlatformAdmin &&
+                  activeTab === "adminSellers"
+                ) {
+                  loadAdminSellers();
+                  loadSubscriptionPlans();
+                } else if (
+                  isPlatformAdmin &&
+                  ["adminSummary", "adminPlans", "adminPayments"].includes(activeTab)
+                ) {
+                  loadSubscriptionPlans();
+                  loadAdminSubscriptionSummary();
+                  loadAdminSubscriptionPayments();
+                }
+              }}
+            >
+              {isPlatformAdmin && ["adminSummary", "adminSellers", "adminPlans", "adminPayments"].includes(activeTab) ? "Refresh platform data" : "Refresh"}
+            </button>
+          )}
         </div>
+
 
         {error && <div className="error-box">{error}</div>}
         {message && (
@@ -2461,6 +2473,7 @@ try {
 
         {/* SELLER SUBSCRIPTION WARNING BANNER */}
         {!isAdminWorkspace &&
+          activeTab !== "security" &&
           selectedStore &&
           shouldShowSubscriptionBanner(selectedStore) && (
           <div
@@ -2559,6 +2572,21 @@ try {
             getProductUsageClass={getProductUsageClass}
             getProductUsagePercent={getProductUsagePercent}
             formatRemainingProducts={formatRemainingProducts}
+          />
+        )}
+
+        {activeTab === "security" && (
+          <SecurityPage
+            changePassword={(payload) =>
+              apiFetch(
+                "/auth/change-password",
+                {
+                  method: "POST",
+                  body: JSON.stringify(payload),
+                },
+              )
+            }
+            onPasswordChanged={logout}
           />
         )}
 

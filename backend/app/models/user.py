@@ -1,9 +1,21 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Index, String, func, text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Index,
+    Integer,
+    String,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import (
+    Mapped,
+    mapped_column,
+    relationship,
+)
 
 from app.db.base import Base
 
@@ -25,6 +37,12 @@ class User(Base):
     password_hash: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
+    )
+    token_version: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default=text("0"),
+        nullable=False,
     )
     full_name: Mapped[str] = mapped_column(
         String(255),
@@ -61,11 +79,17 @@ class User(Base):
         nullable=False,
     )
 
-    stores = relationship("Store", back_populates="owner")
+    stores = relationship(
+        "Store",
+        back_populates="owner",
+    )
+
 
 Index(
     "ix_users_merchants_created_at_id_desc",
     User.created_at.desc(),
     User.id.desc(),
-    postgresql_where=text("role = 'merchant'"),
+    postgresql_where=text(
+        "role = 'merchant'"
+    ),
 )
