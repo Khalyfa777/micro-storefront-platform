@@ -4649,7 +4649,7 @@ canvas {
 }
 
 .success-box-products::before {
-  content: "âœ“";
+  content: "\2713";
   display: grid;
   flex: 0 0 22px;
   width: 22px;

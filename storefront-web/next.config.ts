@@ -131,13 +131,9 @@ if (
     process.env.NEXT_PUBLIC_API_URL
       ?.trim();
 
-  if (!apiUrl) {
-    throw new Error(
-      "NEXT_PUBLIC_API_URL is required for storefront production builds.",
-    );
+  if (apiUrl) {
+    validateProductionApiUrl(apiUrl);
   }
-
-  validateProductionApiUrl(apiUrl);
 }
 
 const nextConfig: NextConfig = {};
