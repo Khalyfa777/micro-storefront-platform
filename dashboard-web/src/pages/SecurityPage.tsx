@@ -43,6 +43,10 @@ export function SecurityPage({
     showNewPassword,
     setShowNewPassword,
   ] = useState(false);
+  const [
+    showConfirmPassword,
+    setShowConfirmPassword,
+  ] = useState(false);
   const [submitting, setSubmitting] =
     useState(false);
   const [error, setError] = useState("");
@@ -113,6 +117,9 @@ export function SecurityPage({
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
       setStatusMessage(
         response.detail ||
           "Password updated. Signing you out securely.",
@@ -141,63 +148,79 @@ export function SecurityPage({
     >
       <article className="security-card">
         <header className="security-card-header">
+          <div className="security-title-row">
+            <div
+              className="security-shield"
+              aria-hidden="true"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                focusable="false"
+              >
+                <path
+                  d="M12 3 19 6v5c0 4.8-2.9 8.1-7 10-4.1-1.9-7-5.2-7-10V6l7-3Z"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="m9.2 12.1 1.8 1.8 3.9-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+
+            <div className="security-heading-copy">
+              <h2 id="security-page-title">
+                Change password
+              </h2>
+
+              <p className="security-card-description">
+                Use a unique password you do not
+                use for another account.
+              </p>
+            </div>
+          </div>
+
           <div
-            className="security-shield"
-            aria-hidden="true"
+            className="security-session-notice"
+            role="note"
           >
             <svg
+              className="security-session-icon"
               viewBox="0 0 24 24"
-              focusable="false"
+              aria-hidden="true"
             >
               <path
-                d="M12 3 19 6v5c0 4.8-2.9 8.1-7 10-4.1-1.9-7-5.2-7-10V6l7-3Z"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinejoin="round"
-              />
-              <path
-                d="m9.2 12.1 1.8 1.8 3.9-4"
+                d="M12 8v4l2.6 1.6"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.8"
                 strokeLinecap="round"
-                strokeLinejoin="round"
+              />
+              <circle
+                cx="12"
+                cy="12"
+                r="8"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
               />
             </svg>
-          </div>
-
-          <div>
-            <p className="security-eyebrow">
-              Account protection
-            </p>
-
-            <h2 id="security-page-title">
-              Change your password
-            </h2>
 
             <p>
-              Use a unique password that you do
-              not use for another account.
-              StorePlug will sign you out on
-              every device after the change.
+              <strong>
+                All sessions will end.
+              </strong>{" "}
+              Sign in again after updating.
             </p>
           </div>
         </header>
-
-        <div
-          className="security-session-notice"
-          role="note"
-        >
-          <strong>
-            Existing sessions will end
-          </strong>
-
-          <span>
-            You will sign in again with the new
-            password when this update succeeds.
-          </span>
-        </div>
 
         <form
           className="security-form"
@@ -208,7 +231,7 @@ export function SecurityPage({
               Current password
             </label>
 
-            <span className="security-password-field">
+            <div className="security-password-field">
               <input
                 id="current-password"
                 name="current_password"
@@ -224,6 +247,8 @@ export function SecurityPage({
                   )
                 }
                 autoComplete="current-password"
+                autoCapitalize="none"
+                spellCheck={false}
                 maxLength={128}
                 disabled={submitting}
                 required
@@ -251,90 +276,116 @@ export function SecurityPage({
                   ? "Hide"
                   : "Show"}
               </button>
-            </span>
+            </div>
           </div>
 
-          <div className="security-form-grid">
-            <div className="security-field">
-              <label htmlFor="new-password">
-                New password
-              </label>
+          <div className="security-field">
+            <label htmlFor="new-password">
+              New password
+            </label>
 
-              <span className="security-password-field">
-                <input
-                  id="new-password"
-                  name="new_password"
-                  type={
-                    showNewPassword
-                      ? "text"
-                      : "password"
-                  }
-                  value={newPassword}
-                  onChange={(event) =>
-                    setNewPassword(
-                      event.target.value,
-                    )
-                  }
-                  autoComplete="new-password"
-                  minLength={8}
-                  maxLength={128}
-                  disabled={submitting}
-                  aria-describedby="new-password-help"
-                  required
-                />
+            <div className="security-password-field">
+              <input
+                id="new-password"
+                name="new_password"
+                type={
+                  showNewPassword
+                    ? "text"
+                    : "password"
+                }
+                value={newPassword}
+                onChange={(event) =>
+                  setNewPassword(
+                    event.target.value,
+                  )
+                }
+                autoComplete="new-password"
+                autoCapitalize="none"
+                spellCheck={false}
+                minLength={8}
+                maxLength={128}
+                disabled={submitting}
+                aria-describedby="new-password-help"
+                required
+              />
 
-                <button
-                  type="button"
-                  className="security-password-toggle"
-                  onClick={() =>
-                    setShowNewPassword(
-                      (current) => !current,
-                    )
-                  }
-                  aria-label={
-                    showNewPassword
-                      ? "Hide new password"
-                      : "Show new password"
-                  }
-                  aria-pressed={
-                    showNewPassword
-                  }
-                  disabled={submitting}
-                >
-                  {showNewPassword
-                    ? "Hide"
-                    : "Show"}
-                </button>
-              </span>
+              <button
+                type="button"
+                className="security-password-toggle"
+                onClick={() =>
+                  setShowNewPassword(
+                    (current) => !current,
+                  )
+                }
+                aria-label={
+                  showNewPassword
+                    ? "Hide new password"
+                    : "Show new password"
+                }
+                aria-pressed={
+                  showNewPassword
+                }
+                disabled={submitting}
+              >
+                {showNewPassword
+                  ? "Hide"
+                  : "Show"}
+              </button>
             </div>
+          </div>
 
-            <div className="security-field">
-              <label htmlFor="confirm-password">
-                Confirm new password
-              </label>
+          <div className="security-field">
+            <label htmlFor="confirm-password">
+              Confirm new password
+            </label>
 
-              <span className="security-password-field">
-                <input
-                  id="confirm-password"
-                  name="confirm_password"
-                  type={
-                    showNewPassword
-                      ? "text"
-                      : "password"
-                  }
-                  value={confirmPassword}
-                  onChange={(event) =>
-                    setConfirmPassword(
-                      event.target.value,
-                    )
-                  }
-                  autoComplete="new-password"
-                  minLength={8}
-                  maxLength={128}
-                  disabled={submitting}
-                  required
-                />
-              </span>
+            <div className="security-password-field">
+              <input
+                id="confirm-password"
+                name="confirm_password"
+                type={
+                  showConfirmPassword
+                    ? "text"
+                    : "password"
+                }
+                value={confirmPassword}
+                onChange={(event) =>
+                  setConfirmPassword(
+                    event.target.value,
+                  )
+                }
+                autoComplete="new-password"
+                autoCapitalize="none"
+                spellCheck={false}
+                minLength={8}
+                maxLength={128}
+                disabled={submitting}
+                aria-describedby="new-password-help"
+                required
+              />
+
+              <button
+                type="button"
+                className="security-password-toggle"
+                onClick={() =>
+                  setShowConfirmPassword(
+                    (current) => !current,
+                  )
+                }
+                aria-label={
+                  showConfirmPassword
+                    ? "Hide password confirmation"
+                    : "Show password confirmation"
+                }
+                aria-pressed={
+                  showConfirmPassword
+                }
+                disabled={submitting}
+              >
+                {showConfirmPassword
+                  ? "Hide"
+                  : "Show"}
+              </button>
             </div>
           </div>
 
@@ -342,9 +393,9 @@ export function SecurityPage({
             id="new-password-help"
             className="security-form-help"
           >
-            Minimum 8 characters. A longer
-            passphrase is safer and easier to
-            remember.
+            At least 8 characters. A longer
+            passphrase is easier to remember and
+            harder to guess.
           </p>
 
           <div
