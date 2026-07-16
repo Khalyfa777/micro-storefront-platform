@@ -1,3 +1,6 @@
+import {
+  useState,
+} from "react";
 import type {
   Dispatch,
   FormEvent,
@@ -109,6 +112,16 @@ export function StoreProfilePage({
   getProductUsagePercent,
   formatRemainingProducts,
 }: StoreProfilePageProps) {
+  const [
+    failedLogoUrl,
+    setFailedLogoUrl,
+  ] = useState("");
+
+  const [
+    failedBannerUrl,
+    setFailedBannerUrl,
+  ] = useState("");
+
   const computedSubscriptionStatus =
     selectedStore
       ? getComputedSubscriptionStatus(
@@ -152,6 +165,15 @@ export function StoreProfilePage({
     resolveDashboardMediaUrl(
       storeForm.banner_url,
     );
+
+  const logoPreviewUnavailable =
+    Boolean(logoPreviewUrl) &&
+    failedLogoUrl === logoPreviewUrl;
+
+  const bannerPreviewUnavailable =
+    Boolean(bannerPreviewUrl) &&
+    failedBannerUrl === bannerPreviewUrl;
+
 
   const subscriptionExpiry =
     isTrialSubscription
@@ -377,12 +399,41 @@ export function StoreProfilePage({
         </label>
 
         {logoPreviewUrl && (
-          <div className="uploaded-image-preview">
-            <img
-              src={logoPreviewUrl}
-              alt="Store logo preview"
-            />
-            <p>Logo uploaded successfully</p>
+          <div
+            className={
+              "uploaded-image-preview "
+              + (
+                logoPreviewUnavailable
+                  ? "media-unavailable"
+                  : ""
+              )
+            }
+          >
+            {logoPreviewUnavailable ? (
+              <div
+                className="uploaded-image-fallback"
+                role="img"
+                aria-label="Store logo unavailable"
+              >
+                Logo unavailable
+              </div>
+            ) : (
+              <img
+                src={logoPreviewUrl}
+                alt="Store logo preview"
+                onError={() =>
+                  setFailedLogoUrl(
+                    logoPreviewUrl,
+                  )
+                }
+              />
+            )}
+
+            <p>
+              {logoPreviewUnavailable
+                ? "Logo file is missing. Upload it again."
+                : "Logo uploaded successfully"}
+            </p>
           </div>
         )}
 
@@ -426,12 +477,41 @@ export function StoreProfilePage({
         </label>
 
         {bannerPreviewUrl && (
-          <div className="uploaded-image-preview">
-            <img
-              src={bannerPreviewUrl}
-              alt="Store banner preview"
-            />
-            <p>Banner uploaded successfully</p>
+          <div
+            className={
+              "uploaded-image-preview "
+              + (
+                bannerPreviewUnavailable
+                  ? "media-unavailable"
+                  : ""
+              )
+            }
+          >
+            {bannerPreviewUnavailable ? (
+              <div
+                className="uploaded-image-fallback"
+                role="img"
+                aria-label="Store banner unavailable"
+              >
+                Banner unavailable
+              </div>
+            ) : (
+              <img
+                src={bannerPreviewUrl}
+                alt="Store banner preview"
+                onError={() =>
+                  setFailedBannerUrl(
+                    bannerPreviewUrl,
+                  )
+                }
+              />
+            )}
+
+            <p>
+              {bannerPreviewUnavailable
+                ? "Banner file is missing. Upload it again."
+                : "Banner uploaded successfully"}
+            </p>
           </div>
         )}
 
@@ -450,13 +530,46 @@ export function StoreProfilePage({
       <aside className="settings-preview">
         <h2>Preview</h2>
 
-        {storeForm.banner_url && (
-          <img className="banner-preview" src={storeForm.banner_url} alt="Store banner" />
+        {bannerPreviewUrl && (
+          bannerPreviewUnavailable ? (
+            <div
+              className={
+                "banner-preview "
+                + "store-media-fallback"
+              }
+              role="img"
+              aria-label="Store banner unavailable"
+            >
+              Banner unavailable
+            </div>
+          ) : (
+            <img
+              className="banner-preview"
+              src={bannerPreviewUrl}
+              alt="Store banner"
+              onError={() =>
+                setFailedBannerUrl(
+                  bannerPreviewUrl,
+                )
+              }
+            />
+          )
         )}
 
-        {storeForm.logo_url && (
-          <img className="logo-preview" src={storeForm.logo_url} alt="Store logo" />
-        )}
+        {logoPreviewUrl
+          && !logoPreviewUnavailable
+          && (
+            <img
+              className="logo-preview"
+              src={logoPreviewUrl}
+              alt="Store logo"
+              onError={() =>
+                setFailedLogoUrl(
+                  logoPreviewUrl,
+                )
+              }
+            />
+          )}
 
         <h3>{storeForm.name || "Store name"}</h3>
         <p className="muted">/{storeForm.slug || "store-slug"}</p>

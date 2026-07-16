@@ -5238,3 +5238,71 @@ canvas {
 }
 
 /* === STOREPLUG SECURITY ROUTE HEADER END === */
+
+/* === STOREPLUG STORE MEDIA RELIABILITY START === */
+
+.store-profile-page
+.uploaded-image-preview.media-unavailable {
+  border-color: #fed7aa !important;
+  background: #fffaf5 !important;
+}
+
+.store-profile-page
+.uploaded-image-preview.media-unavailable p {
+  color: #9a3412 !important;
+}
+
+.uploaded-image-fallback {
+  display: grid;
+  flex: 0 0 auto;
+  width: 64px;
+  min-width: 64px;
+  height: 64px;
+  place-items: center;
+  padding: 0.45rem;
+  border: 1px dashed #fdba74;
+  border-radius: 14px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 0.65rem;
+  font-weight: 850;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.settings-preview
+.store-media-fallback {
+  display: grid !important;
+  place-items: center !important;
+  border: 1px dashed #94a3b8 !important;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.1),
+      rgba(148, 163, 184, 0.08)
+    ) !important;
+  color: #cbd5e1 !important;
+  font-size: 0.76rem !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
+  text-align: center !important;
+}
+
+.settings-preview
+.banner-preview.store-media-fallback {
+  width: 100% !important;
+  height: 180px !important;
+}
+
+
+@media (max-width: 820px) {
+  .uploaded-image-fallback {
+    width: 58px;
+    min-width: 58px;
+    height: 58px;
+    border-radius: 13px;
+    font-size: 0.6rem;
+  }
+}
+
+/* === STOREPLUG STORE MEDIA RELIABILITY END === */
