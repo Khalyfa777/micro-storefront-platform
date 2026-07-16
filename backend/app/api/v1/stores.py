@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_store_owner, require_platform_admin
+from app.core.config import settings
 from app.db.session import get_db
 from app.models import (
     Product,
@@ -1158,7 +1159,10 @@ async def get_store_subscription_usage(
         is_unlimited=is_unlimited,
         can_upload_images=can_upload_images,
         can_use_custom_domain=can_use_custom_domain,
-        can_receive_online_payments=can_receive_online_payments,
+        can_receive_online_payments=(
+            settings.PAYMENTS_ENABLED
+            and can_receive_online_payments
+        ),
         plan_is_active=plan_is_active,
     )
 
