@@ -6,6 +6,7 @@ type DashboardTab =
   | "orders"
   | "products"
   | "settings"
+  | "security"
   | "adminSummary"
   | "adminSellers"
   | "adminPlans"
@@ -154,6 +155,24 @@ export function Sidebar({
               onClick={() => onOpenTab("settings")}
             >
               Store profile
+            </button>
+          </div>
+
+          <div className="nav-group account-nav-group">
+            <p className="nav-group-title">
+              Account
+            </p>
+
+            <button
+              type="button"
+              className={
+                activeTab === "security"
+                  ? "nav-btn active"
+                  : "nav-btn"
+              }
+              onClick={() => onOpenTab("security")}
+            >
+              Security
             </button>
           </div>
 

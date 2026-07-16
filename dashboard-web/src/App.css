@@ -4816,3 +4816,265 @@ canvas {
 }
 
 /* === STOREPLUG ACTIONS BUTTON ASCII REPAIR END === */
+
+/* === STOREPLUG ACCOUNT SECURITY START === */
+
+.security-page {
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.security-card {
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 18px 45px rgba(15, 23, 42, 0.06);
+}
+
+.security-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-bottom: 1px solid #edf1f5;
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(30, 43, 77, 0.08),
+      transparent 42%
+    ),
+    #ffffff;
+}
+
+.security-shield {
+  display: grid;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid rgba(30, 43, 77, 0.12);
+  border-radius: 15px;
+  background: #f3f6fb;
+  color: #1e2b4d;
+}
+
+.security-shield svg {
+  width: 25px;
+  height: 25px;
+}
+
+.security-eyebrow {
+  margin: 0 0 0.35rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.security-card-header h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+
+.security-card-header p:last-child {
+  max-width: 42rem;
+  margin: 0.55rem 0 0;
+  color: #64748b;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.security-session-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1.25rem 1.5rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid #dbe6f2;
+  border-radius: 14px;
+  background: #f7fafc;
+}
+
+.security-session-notice strong {
+  color: #1e293b;
+  font-size: 0.85rem;
+}
+
+.security-session-notice span {
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.security-form {
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+.security-field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.security-form label {
+  display: block;
+  color: #1e293b;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.security-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.security-password-field {
+  position: relative;
+  display: block;
+}
+
+.security-password-field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.78rem 4rem 0.78rem 0.9rem;
+  border: 1px solid #cfd8e3;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-weight: 600;
+}
+
+.security-password-field input:focus-visible {
+  border-color: #1e2b4d;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(30, 43, 77, 0.12);
+}
+
+.security-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.45rem;
+  min-height: 34px;
+  padding: 0 0.65rem;
+  border: 0;
+  border-radius: 9px;
+  background: #eef2f7;
+  color: #334155;
+  font-size: 0.72rem;
+  font-weight: 800;
+  transform: translateY(-50%);
+  box-shadow: none;
+}
+
+.security-password-toggle:active {
+  transform: translateY(-50%) scale(0.98);
+}
+
+.security-form-help {
+  margin: -0.25rem 0 0;
+  color: #64748b;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.security-form-feedback {
+  min-height: 0;
+}
+
+.security-error,
+.security-success {
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.security-error {
+  border: 1px solid #fecdca;
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.security-success {
+  border: 1px solid #abefc6;
+  background: #ecfdf3;
+  color: #067647;
+}
+
+.security-form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.security-submit {
+  min-height: 46px;
+  min-width: 190px;
+  padding: 0.75rem 1.1rem;
+  border: 1px solid #111c34;
+  border-radius: 12px;
+  background: #111c34;
+  color: #ffffff;
+  font-size: 0.84rem;
+  font-weight: 800;
+  box-shadow: 0 10px 22px rgba(17, 28, 52, 0.16);
+}
+
+.security-submit:disabled,
+.security-password-toggle:disabled,
+.security-password-field input:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.account-nav-group {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 1rem;
+}
+
+@media (max-width: 700px) {
+  .security-card {
+    border-radius: 18px;
+  }
+
+  .security-card-header {
+    padding: 1.15rem;
+  }
+
+  .security-session-notice {
+    align-items: flex-start;
+    flex-direction: column;
+    margin: 1rem 1.15rem 0;
+  }
+
+  .security-session-notice span {
+    text-align: left;
+  }
+
+  .security-form {
+    padding: 1.15rem;
+  }
+
+  .security-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .security-submit {
+    width: 100%;
+  }
+}
+
+/* === STOREPLUG ACCOUNT SECURITY END === */
