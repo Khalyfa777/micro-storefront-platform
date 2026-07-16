@@ -6,10 +6,12 @@ import {
 } from "react";
 
 import type {
-  Dispatch,
   FormEvent,
-  SetStateAction,
 } from "react";
+
+import {
+  normalizeGhanaPhoneNumber,
+} from "../utils/phone";
 
 import type {
   AdminSellerCreateResponse,
@@ -23,37 +25,13 @@ type SellerFilter =
   | SellerAccountStatus;
 
 
-type AdminStoreFilter =
-  | "all"
-  | "active"
-  | "trial"
-  | "expired"
-  | "suspended"
-  | "expiring";
-
-
-type AdminStoreItem = {
-  id: string;
-  owner_id: string;
-  owner_email: string;
-  owner_name: string;
-  slug: string;
-  name: string;
-  plan_name: string;
-  subscription_status: string;
-  monthly_fee: string | number;
-  subscription_ends_at?: string | null;
-  last_payment_at?: string | null;
-  is_active: boolean;
-  is_suspended: boolean;
-};
-
 
 type AdminSubscriptionPlanItem = {
   id: string;
   name: string;
   display_name: string;
   monthly_fee: string | number;
+  is_quote_only: boolean;
   product_limit?: number | null;
   can_upload_images: boolean;
   can_use_custom_domain: boolean;
@@ -88,63 +66,7 @@ type AdminSellersPageProps = {
 
   subscriptionPlans: AdminSubscriptionPlanItem[];
 
-  /*
-   * Legacy store-operation props stay wired
-   * temporarily. Their UI has been removed from
-   * the seller list and will move into seller detail.
-   */
-  adminStores: AdminStoreItem[];
-  filteredAdminStores: AdminStoreItem[];
-  adminStoreSearch: string;
-  setAdminStoreSearch: (value: string) => void;
-  adminStoreFilter: AdminStoreFilter;
-  setAdminStoreFilter: Dispatch<
-    SetStateAction<AdminStoreFilter>
-  >;
-  adminPlanDrafts: Record<string, string>;
-  setAdminPlanDrafts: Dispatch<
-    SetStateAction<Record<string, string>>
-  >;
-  loadingSubscriptionPlans: boolean;
-  loadAdminStores: () => void | Promise<void>;
-  loadingAdminStores: boolean;
-  exportAdminStoresCsv: () => void;
-  formatPlanName: (
-    value?: string | null
-  ) => string;
-  formatMonthlyFee: (
-    value?: string | number | null
-  ) => string;
-  formatSubscriptionDate: (
-    value?: string | null
-  ) => string;
-  getComputedSubscriptionStatus: (
-    status?: string | null,
-    endsAt?: string | null,
-    isSuspended?: boolean,
-  ) => string;
-  getSubscriptionTimeClass: (
-    status?: string | null,
-    endsAt?: string | null,
-    isSuspended?: boolean,
-  ) => string;
-  getSubscriptionTimeLabel: (
-    status?: string | null,
-    endsAt?: string | null,
-    isSuspended?: boolean,
-  ) => string;
-  extendSelectedStoreSubscription: (
-  ) => void | Promise<void>;
-  extendAdminStoreSubscription: (
-    storeId: string
-  ) => void | Promise<void>;
-  adminChangeStorePlan: (
-    store: AdminStoreItem
-  ) => void | Promise<void>;
-  adminSetStoreSuspension: (
-    store: AdminStoreItem,
-    suspended: boolean,
-  ) => void | Promise<void>;
+
 };
 
 
@@ -800,6 +722,7 @@ export function AdminSellersPage({
         name: "starter",
         display_name: "Starter",
         monthly_fee: 30,
+        is_quote_only: false,
         product_limit: 10,
         can_upload_images: true,
         can_use_custom_domain: false,
@@ -931,6 +854,20 @@ export function AdminSellersPage({
       return;
     }
 
+    let normalizedPhoneNumber: string | null;
+
+    try {
+      normalizedPhoneNumber =
+        normalizeGhanaPhoneNumber(phoneNumber);
+    } catch (error) {
+      setCreateError(
+        error instanceof Error
+          ? error.message
+          : "Enter a valid Ghana mobile number.",
+      );
+      return;
+    }
+
     setCreatingSeller(true);
     setCreateError("");
     setCopied(false);
@@ -945,7 +882,7 @@ export function AdminSellersPage({
               full_name: fullName,
               email,
               phone_number:
-                phoneNumber || null,
+                normalizedPhoneNumber,
               store_name: storeName,
               store_slug: storeSlug,
               plan_name:
@@ -1467,7 +1404,7 @@ export function AdminSellersPage({
                       value={plan.name}
                     >
                       {plan.display_name}
-                      {plan.name === "custom"
+                      {plan.is_quote_only
                         ? " - Quote only"
                         : ` - GHS ${Number(
                             plan.monthly_fee,
@@ -1609,7 +1546,7 @@ export function AdminSellersPage({
             onChange={(event) =>
               setSearch(event.target.value)
             }
-            placeholder="Search seller, email, phone, store, or slug"
+            placeholder="Search sellers, stores, email or phone"
             aria-label="Search sellers"
           />
 

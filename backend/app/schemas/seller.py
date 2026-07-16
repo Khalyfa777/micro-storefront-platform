@@ -10,6 +10,7 @@ from pydantic import (
     field_validator,
 )
 
+from app.utils.phone import normalize_ghana_phone_number
 from app.utils.slug import normalize_slug
 
 
@@ -62,11 +63,11 @@ class AdminSellerCreateRequest(BaseModel):
             return None
 
         if not isinstance(value, str):
-            return value
+            raise ValueError(
+                "Phone number must be text."
+            )
 
-        normalized = value.strip()
-
-        return normalized or None
+        return normalize_ghana_phone_number(value)
 
     @field_validator(
         "store_slug",
@@ -202,8 +203,15 @@ class AdminSellerStoreSummary(BaseModel):
     subscription_status: str
     monthly_fee: Decimal
 
+    active_product_count: int = 0
+    publish_ready: bool = False
+    publish_blockers: list[str] = Field(
+        default_factory=list
+    )
+
     trial_ends_at: datetime | None = None
     subscription_ends_at: datetime | None = None
+    last_payment_at: datetime | None = None
 
     created_at: datetime
     updated_at: datetime
@@ -339,6 +347,21 @@ class AdminSellerAccountEventSummary(BaseModel):
     created_at: datetime
 
 
+class AdminSellerSubscriptionPaymentSummary(BaseModel):
+    id: UUID
+    store_id: UUID
+    plan_name: str
+    amount: Decimal
+    currency: str
+    payment_method: str
+    payment_reference: str | None = None
+    note: str | None = None
+    covered_days: int
+    approved_by_email: EmailStr | None = None
+    paid_at: datetime
+    created_at: datetime
+
+
 class AdminSellerDetailResponse(BaseModel):
     seller_id: UUID
 
@@ -385,6 +408,11 @@ class AdminSellerDetailResponse(BaseModel):
     account_event_count: int
     account_events: list[
         AdminSellerAccountEventSummary
+    ]
+
+    subscription_payment_count: int
+    subscription_payments: list[
+        AdminSellerSubscriptionPaymentSummary
     ]
 
     created_at: datetime

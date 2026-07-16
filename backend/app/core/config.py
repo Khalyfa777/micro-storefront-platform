@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     SELLER_INVITATION_RATE_LIMIT_WINDOW_SECONDS: int = 300
     TRUST_PROXY_HEADERS: bool = False
 
+    MAX_REQUEST_BODY_BYTES: int = 5 * 1024 * 1024
+    IMAGE_UPLOAD_MAX_BYTES: int = 3 * 1024 * 1024
+    IMAGE_UPLOAD_STORE_QUOTA_BYTES: int = 512 * 1024 * 1024
+    IMAGE_UPLOAD_ORPHAN_TTL_SECONDS: int = 24 * 60 * 60
+    IMAGE_UPLOAD_RATE_LIMIT_ATTEMPTS: int = 20
+    IMAGE_UPLOAD_RATE_LIMIT_WINDOW_SECONDS: int = 300
+
     DATABASE_URL: str
     REDIS_URL: str = "redis://redis:6379/0"
 
@@ -53,7 +60,51 @@ class Settings(BaseSettings):
                 "SELLER_INVITATION_RATE_LIMIT_WINDOW_SECONDS must be greater than zero."
             )
 
-        if self.ENVIRONMENT.lower() != "production":
+        positive_image_settings = {
+            "MAX_REQUEST_BODY_BYTES": self.MAX_REQUEST_BODY_BYTES,
+            "IMAGE_UPLOAD_MAX_BYTES": self.IMAGE_UPLOAD_MAX_BYTES,
+            "IMAGE_UPLOAD_STORE_QUOTA_BYTES": (
+                self.IMAGE_UPLOAD_STORE_QUOTA_BYTES
+            ),
+            "IMAGE_UPLOAD_ORPHAN_TTL_SECONDS": (
+                self.IMAGE_UPLOAD_ORPHAN_TTL_SECONDS
+            ),
+            "IMAGE_UPLOAD_RATE_LIMIT_ATTEMPTS": (
+                self.IMAGE_UPLOAD_RATE_LIMIT_ATTEMPTS
+            ),
+            "IMAGE_UPLOAD_RATE_LIMIT_WINDOW_SECONDS": (
+                self.IMAGE_UPLOAD_RATE_LIMIT_WINDOW_SECONDS
+            ),
+        }
+
+        for name, value in positive_image_settings.items():
+            if value <= 0:
+                raise ValueError(
+                    f"{name} must be greater than zero."
+                )
+
+        if self.IMAGE_UPLOAD_STORE_QUOTA_BYTES < self.IMAGE_UPLOAD_MAX_BYTES:
+            raise ValueError(
+                "IMAGE_UPLOAD_STORE_QUOTA_BYTES must be at least "
+                "IMAGE_UPLOAD_MAX_BYTES."
+            )
+
+        if self.MAX_REQUEST_BODY_BYTES <= self.IMAGE_UPLOAD_MAX_BYTES:
+            raise ValueError(
+                "MAX_REQUEST_BODY_BYTES must be greater than "
+                "IMAGE_UPLOAD_MAX_BYTES to allow multipart overhead."
+            )
+
+        environment = self.ENVIRONMENT.strip().lower()
+        local_environments = {
+            "development",
+            "dev",
+            "local",
+            "test",
+            "testing",
+        }
+
+        if environment in local_environments:
             return self
 
         weak_secret_keys = {
@@ -86,8 +137,20 @@ class Settings(BaseSettings):
         for name, value in url_values.items():
             if any(marker in value for marker in local_markers):
                 raise ValueError(
-                    f"Production {name} cannot contain localhost "
+                    f"Deployed {name} cannot contain localhost "
                     "or local IP addresses."
+                )
+
+        public_urls = {
+            "FRONTEND_URL": self.FRONTEND_URL,
+            "DASHBOARD_PUBLIC_URL": self.DASHBOARD_PUBLIC_URL,
+            "BACKEND_PUBLIC_URL": self.BACKEND_PUBLIC_URL,
+        }
+
+        for name, value in public_urls.items():
+            if not value.lower().startswith("https://"):
+                raise ValueError(
+                    f"Deployed {name} must use an HTTPS URL."
                 )
 
         if (

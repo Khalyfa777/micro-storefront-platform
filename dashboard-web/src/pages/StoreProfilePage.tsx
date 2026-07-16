@@ -3,6 +3,9 @@ import type {
   FormEvent,
   SetStateAction,
 } from "react";
+import {
+  resolveDashboardMediaUrl,
+} from "../utils/api-url";
 
 type StoreForm = {
   name: string;
@@ -18,6 +21,7 @@ type StoreSummary = {
   plan_name?: string | null;
   subscription_status?: string | null;
   monthly_fee?: string | number | null;
+  trial_ends_at?: string | null;
   subscription_ends_at?: string | null;
   is_suspended?: boolean | null;
 };
@@ -26,6 +30,7 @@ type StoreSubscriptionUsage = {
   plan_name: string;
   display_name: string;
   monthly_fee: string | number;
+  is_quote_only: boolean;
   product_limit?: number | null;
   active_products: number;
   remaining_products?: number | null;
@@ -58,7 +63,8 @@ type StoreProfilePageProps = {
     (value?: string | null) => string;
   getComputedSubscriptionStatus: (
     status?: string | null,
-    endsAt?: string | null,
+    trialEndsAt?: string | null,
+    subscriptionEndsAt?: string | null,
     isSuspended?: boolean | null,
   ) => string;
   formatMonthlyFee:
@@ -103,6 +109,55 @@ export function StoreProfilePage({
   getProductUsagePercent,
   formatRemainingProducts,
 }: StoreProfilePageProps) {
+  const computedSubscriptionStatus =
+    selectedStore
+      ? getComputedSubscriptionStatus(
+          selectedStore.subscription_status,
+          selectedStore.trial_ends_at,
+          selectedStore.subscription_ends_at,
+          selectedStore.is_suspended,
+        )
+      : "";
+
+  const isTrialSubscription =
+    selectedStore?.subscription_status === "trial";
+
+  const isExpiredTrial =
+    isTrialSubscription &&
+    computedSubscriptionStatus === "expired";
+
+  const isQuoteOnly =
+    subscriptionUsage?.is_quote_only
+    ?? selectedStore?.plan_name === "custom";
+
+  const standardMonthlyFee =
+    subscriptionUsage?.monthly_fee
+    ?? selectedStore?.monthly_fee
+    ?? 0;
+
+  const standardPriceLabel = isQuoteOnly
+    ? "Custom quote"
+    : `${formatMonthlyFee(standardMonthlyFee)}/month`;
+
+  const currentMonthlyFee =
+    selectedStore?.monthly_fee
+    ?? standardMonthlyFee;
+
+  const logoPreviewUrl =
+    resolveDashboardMediaUrl(
+      storeForm.logo_url,
+    );
+
+  const bannerPreviewUrl =
+    resolveDashboardMediaUrl(
+      storeForm.banner_url,
+    );
+
+  const subscriptionExpiry =
+    isTrialSubscription
+      ? selectedStore?.trial_ends_at
+      : selectedStore?.subscription_ends_at;
+
   return (
     <div className="settings-layout store-profile-page">
       <form className="settings-card" onSubmit={saveStoreSettings}>
@@ -118,30 +173,48 @@ export function StoreProfilePage({
             <div>
               <span>Status</span>
               <strong
-                className={`subscription-status ${getComputedSubscriptionStatus(
-                  selectedStore.subscription_status,
-                  selectedStore.subscription_ends_at,
-                  selectedStore.is_suspended
-                )}`}
+                className={`subscription-status ${computedSubscriptionStatus}`}
               >
                 {formatPlanName(
-                  getComputedSubscriptionStatus(
-                    selectedStore.subscription_status,
-                    selectedStore.subscription_ends_at,
-                    selectedStore.is_suspended
-                  )
+                  computedSubscriptionStatus,
                 )}
               </strong>
             </div>
 
-            <div>
-              <span>Monthly fee</span>
-              <strong>{formatMonthlyFee(selectedStore.monthly_fee)}</strong>
+            <div className="subscription-charge-summary">
+              <span>
+                {isTrialSubscription
+                  ? "Trial charge"
+                  : "Monthly fee"}
+              </span>
+              <strong>
+                {isTrialSubscription
+                  ? isExpiredTrial
+                    ? "Trial ended"
+                    : "GHS 0 during trial"
+                  : formatMonthlyFee(
+                      currentMonthlyFee,
+                    )}
+              </strong>
+              {isTrialSubscription && (
+                <small>
+                  {loadingSubscriptionUsage
+                    ? "Loading standard price..."
+                    : subscriptionUsage
+                      ? (
+                          <>
+                            Standard price:{" "}
+                            {standardPriceLabel}
+                          </>
+                        )
+                      : "Standard price unavailable"}
+                </small>
+              )}
             </div>
 
             <div>
               <span>Expires</span>
-              <strong>{formatSubscriptionDate(selectedStore.subscription_ends_at)}</strong>
+              <strong>{formatSubscriptionDate(subscriptionExpiry)}</strong>
             </div>
           </div>
         )}
@@ -169,8 +242,14 @@ export function StoreProfilePage({
             <div className="product-usage-meta">
               <span>{formatRemainingProducts(subscriptionUsage)}</span>
               <span>
-                Monthly fee:{" "}
-                {formatMonthlyFee(subscriptionUsage?.monthly_fee ?? selectedStore.monthly_fee)}
+                {isTrialSubscription
+                  ? "Standard plan: "
+                  : "Monthly fee: "}
+                {isTrialSubscription
+                  ? standardPriceLabel
+                  : formatMonthlyFee(
+                      currentMonthlyFee,
+                    )}
               </span>
             </div>
 
@@ -240,8 +319,16 @@ export function StoreProfilePage({
                 whatsapp_number: e.target.value,
               }))
             }
-            placeholder="e.g. 233 24 123 4567"
+            placeholder="e.g. 0544494613"
+            inputMode="tel"
+            autoComplete="tel"
+            maxLength={20}
           />
+          <small className="field-help-text">
+            Use one Ghana number only. Local format
+            (0544494613) is accepted and saved as
+            233544494613.
+          </small>
         </label>
 
         {subscriptionUsage?.can_upload_images === false && (
@@ -250,42 +337,100 @@ export function StoreProfilePage({
           </p>
         )}
 
-        <label>
-          Store logo
+        <label
+          className={
+            "upload-dropzone store-brand-upload "
+            + (
+              loadingSubscriptionUsage
+              || subscriptionUsage
+                ?.can_upload_images === false
+                ? "disabled"
+                : ""
+            )
+          }
+        >
           <input
+            className="upload-file-input"
             type="file"
             accept="image/jpeg,image/png,image/webp"
+            aria-label="Choose a store logo"
             disabled={loadingSubscriptionUsage || subscriptionUsage?.can_upload_images === false}
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) uploadStoreImage(file, "logo");
             }}
           />
+
+          <span className="upload-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <rect x="5" y="5" width="14" height="14" rx="3" />
+              <circle cx="10" cy="10" r="1.5" />
+              <path d="m7.5 17 3.5-3.5 2.2 2.2 1.6-1.6 2.7 2.9" />
+            </svg>
+          </span>
+          <span>
+            <strong>Upload store logo</strong>
+            <small>
+              Square JPEG, PNG, or WEBP
+            </small>
+          </span>
         </label>
 
-        {storeForm.logo_url && (
+        {logoPreviewUrl && (
           <div className="uploaded-image-preview">
-            <img src={storeForm.logo_url} alt="Store logo preview" />
+            <img
+              src={logoPreviewUrl}
+              alt="Store logo preview"
+            />
             <p>Logo uploaded successfully</p>
           </div>
         )}
 
-        <label>
-          Store banner
+        <label
+          className={
+            "upload-dropzone store-brand-upload "
+            + (
+              loadingSubscriptionUsage
+              || subscriptionUsage
+                ?.can_upload_images === false
+                ? "disabled"
+                : ""
+            )
+          }
+        >
           <input
+            className="upload-file-input"
             type="file"
             accept="image/jpeg,image/png,image/webp"
+            aria-label="Choose a store banner"
             disabled={loadingSubscriptionUsage || subscriptionUsage?.can_upload_images === false}
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) uploadStoreImage(file, "banner");
             }}
           />
+
+          <span className="upload-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <rect x="3.5" y="6.5" width="17" height="11" rx="2.5" />
+              <circle cx="9" cy="10.5" r="1.25" />
+              <path d="m6 15 3.3-3 2.6 2.1 2.1-1.8 4 2.7" />
+            </svg>
+          </span>
+          <span>
+            <strong>Upload store banner</strong>
+            <small>
+              Wide JPEG, PNG, or WEBP
+            </small>
+          </span>
         </label>
 
-        {storeForm.banner_url && (
+        {bannerPreviewUrl && (
           <div className="uploaded-image-preview">
-            <img src={storeForm.banner_url} alt="Store banner preview" />
+            <img
+              src={bannerPreviewUrl}
+              alt="Store banner preview"
+            />
             <p>Banner uploaded successfully</p>
           </div>
         )}

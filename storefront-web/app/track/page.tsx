@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  resolveStorefrontApiBaseUrl,
+} from "../lib/api-url";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_URL =
+  resolveStorefrontApiBaseUrl();
 
 type OrderItem = {
   product_name: string;

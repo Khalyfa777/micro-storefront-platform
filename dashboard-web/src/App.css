@@ -4128,3 +4128,691 @@ canvas {
     overflow-x: clip !important;
   }
 }
+
+.field-help-text {
+  display: block;
+  margin-top: -0.2rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+/* === STOREPLUG MOBILE DASHBOARD POLISH START === */
+
+.subscription-charge-summary small {
+  display: block;
+  margin-top: 0.28rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.store-brand-upload {
+  min-height: 82px;
+}
+
+.store-brand-upload .upload-icon {
+  font-size: 0.82rem !important;
+  letter-spacing: 0.06em;
+}
+
+.store-brand-upload .upload-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.product-thumb-fallback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  background: linear-gradient(135deg, #0f172a, #334155);
+  color: #ffffff;
+}
+
+.admin-subscription-payments-page .subscription-payment-filters {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.55rem;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-subscription-payments-page .subscription-payment-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.admin-subscription-payments-page .subscription-payment-filters button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .admin-subscription-payments-page {
+    padding: 0.85rem !important;
+    border-radius: 18px !important;
+  }
+
+  .admin-subscription-payments-page .admin-stores-header {
+    display: grid !important;
+    gap: 0.75rem !important;
+  }
+
+  .admin-subscription-payments-page .admin-header-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    width: 100% !important;
+    margin-top: 0 !important;
+  }
+
+  .admin-subscription-payments-page .admin-header-actions button {
+    width: 100% !important;
+    min-height: 42px !important;
+    padding: 0.58rem 0.65rem !important;
+    border-radius: 12px !important;
+    font-size: 0.78rem !important;
+  }
+
+  .admin-subscription-payments-page .subscription-payment-search {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    margin: 0.8rem 0 0.55rem !important;
+  }
+
+  .admin-subscription-payments-page .subscription-payment-search input {
+    min-width: 0 !important;
+    min-height: 44px !important;
+    padding: 0.68rem 0.78rem !important;
+    border-radius: 13px !important;
+    font-size: 0.82rem !important;
+  }
+
+  .admin-subscription-payments-page .subscription-payment-search button {
+    width: auto !important;
+    min-height: 42px !important;
+    padding: 0.58rem 0.72rem !important;
+    border-radius: 12px !important;
+    font-size: 0.76rem !important;
+  }
+
+  .admin-subscription-payments-page .subscription-payment-filters {
+    gap: 0.45rem !important;
+    margin: 0.25rem 0 0.75rem !important;
+    padding: 0.1rem 0 0.5rem !important;
+  }
+
+  .admin-subscription-payments-page .subscription-payment-filters button {
+    min-height: 34px !important;
+    padding: 0.45rem 0.7rem !important;
+    font-size: 0.74rem !important;
+  }
+
+  .admin-subscription-payments-page .admin-store-list {
+    gap: 0.7rem !important;
+  }
+
+  .admin-subscription-payments-page .subscription-payment-card {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.65rem 0.75rem !important;
+    padding: 0.82rem !important;
+    border-radius: 15px !important;
+    background: #ffffff !important;
+  }
+
+  .admin-subscription-payments-page .subscription-payment-card > div {
+    min-width: 0 !important;
+  }
+
+  .admin-subscription-payments-page .subscription-payment-card > div:first-child {
+    grid-column: 1 / -1 !important;
+    padding-bottom: 0.65rem !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+
+  .admin-subscription-payments-page .subscription-payment-card h4 {
+    margin: 0 0 0.18rem !important;
+    font-size: 0.98rem !important;
+  }
+
+  .admin-subscription-payments-page .subscription-payment-card p {
+    margin: 0.12rem 0 !important;
+    color: #64748b !important;
+    font-size: 0.7rem !important;
+    line-height: 1.35 !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .admin-subscription-payments-page .subscription-payment-card span {
+    display: block !important;
+    margin-bottom: 0.2rem !important;
+    color: #94a3b8 !important;
+    font-size: 0.58rem !important;
+    font-weight: 850 !important;
+    letter-spacing: 0.07em !important;
+    text-transform: uppercase !important;
+  }
+
+  .admin-subscription-payments-page .subscription-payment-card strong {
+    display: block !important;
+    color: #0f172a !important;
+    font-size: 0.78rem !important;
+    line-height: 1.35 !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .store-brand-upload {
+    min-height: 78px !important;
+    padding: 0.8rem !important;
+    border-radius: 17px !important;
+  }
+
+  .store-brand-upload .upload-icon {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 13px !important;
+  }
+
+  .premium-product-card {
+    gap: 0.72rem !important;
+    padding: 0.85rem !important;
+    border-radius: 19px !important;
+  }
+
+  .premium-product-card .product-card-top {
+    display: grid !important;
+    grid-template-columns: 52px minmax(0, 1fr) !important;
+    gap: 0.7rem !important;
+    align-items: start !important;
+  }
+
+  .premium-product-card .product-thumb-box {
+    width: 52px !important;
+    height: 52px !important;
+    border-radius: 15px !important;
+  }
+
+  .premium-product-card .product-title-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0.48rem !important;
+  }
+
+  .premium-product-card .product-title-row > div:first-child {
+    min-width: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .premium-product-card .product-title-row h3,
+  .premium-product-card .product-slug {
+    max-width: none !important;
+  }
+
+  .premium-product-card .product-title-row h3 {
+    font-size: 1.02rem !important;
+    line-height: 1.15 !important;
+  }
+
+  .premium-product-card .product-slug {
+    margin-top: 0.18rem !important;
+    font-size: 0.76rem !important;
+    line-height: 1.3 !important;
+  }
+
+  .premium-product-card .product-card-status {
+    position: static !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 0.35rem !important;
+    min-width: 0 !important;
+  }
+
+  .premium-product-card .product-status-pill,
+  .premium-product-card .featured-pill {
+    min-width: 0 !important;
+    max-width: none !important;
+    padding: 0.38rem 0.58rem !important;
+    font-size: 0.68rem !important;
+  }
+
+  .premium-product-card .product-desc {
+    margin: 0 !important;
+    color: #475569 !important;
+    font-size: 0.82rem !important;
+    line-height: 1.4 !important;
+  }
+
+  .premium-product-card .product-card-stats {
+    gap: 0.55rem !important;
+    padding: 0.58rem 0 !important;
+  }
+
+  .premium-product-card .product-card-stats span {
+    margin-bottom: 0.12rem !important;
+    font-size: 0.61rem !important;
+    letter-spacing: 0.08em !important;
+  }
+
+  .premium-product-card .product-card-stats strong {
+    font-size: 0.88rem !important;
+  }
+
+  .premium-product-card .product-card-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0.45rem !important;
+  }
+
+  .premium-product-card .product-action-btn {
+    min-height: 42px !important;
+    padding: 0.5rem 0.35rem !important;
+    border-radius: 12px !important;
+    font-size: 0.74rem !important;
+  }
+
+  .premium-product-card .product-card-actions .danger {
+    grid-column: auto !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .admin-subscription-payments-page .subscription-payment-card {
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-subscription-payments-page .subscription-payment-card > div:first-child {
+    grid-column: auto !important;
+  }
+
+  .premium-product-card .product-card-actions {
+    gap: 0.35rem !important;
+  }
+
+  .premium-product-card .product-action-btn {
+    font-size: 0.68rem !important;
+  }
+}
+
+/* === STOREPLUG MOBILE DASHBOARD POLISH END === */
+
+/* === STOREPLUG COMPACT PRODUCT CARD ACTIONS START === */
+
+.product-card-actions-compact {
+  display: grid !important;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr) !important;
+  gap: 0.6rem !important;
+  align-items: start !important;
+}
+
+.product-card-actions-compact .product-edit-btn {
+  border-color: #0f172a !important;
+  background: #0f172a !important;
+  color: #ffffff !important;
+}
+
+.product-more-actions {
+  min-width: 0;
+}
+
+.product-more-actions > summary {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #dbe3ee;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.88rem;
+  font-weight: 850;
+  line-height: 1.2;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.product-more-actions > summary::-webkit-details-marker {
+  display: none;
+}
+
+.product-more-actions > summary::after {
+  content: "⋯";
+  margin-left: 0.42rem;
+  color: #64748b;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.product-more-actions[open] > summary {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.product-more-actions-panel {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+}
+
+.product-more-actions-panel .product-action-btn {
+  min-height: 42px !important;
+}
+
+@media (max-width: 700px) {
+  .premium-product-card {
+    gap: 0.62rem !important;
+    padding: 0.78rem !important;
+    border-radius: 18px !important;
+    overflow: visible !important;
+  }
+
+  .premium-product-card .product-card-top {
+    grid-template-columns:
+      54px minmax(0, 1fr) !important;
+    gap: 0.68rem !important;
+  }
+
+  .premium-product-card .product-thumb-box {
+    width: 54px !important;
+    height: 54px !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 15px !important;
+  }
+
+  .premium-product-card .product-title-row {
+    gap: 0.35rem !important;
+  }
+
+  .premium-product-card .product-title-row h3 {
+    margin: 0 !important;
+    font-size: 1.02rem !important;
+    line-height: 1.12 !important;
+  }
+
+  .premium-product-card .product-slug {
+    margin-top: 0.14rem !important;
+    font-size: 0.74rem !important;
+    line-height: 1.25 !important;
+  }
+
+  .premium-product-card .product-card-status {
+    gap: 0.3rem !important;
+  }
+
+  .premium-product-card .product-status-pill,
+  .premium-product-card .featured-pill {
+    padding: 0.34rem 0.54rem !important;
+    font-size: 0.65rem !important;
+  }
+
+  .premium-product-card .product-desc {
+    display: -webkit-box !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    font-size: 0.8rem !important;
+    line-height: 1.38 !important;
+    -webkit-box-orient: vertical !important;
+    -webkit-line-clamp: 2 !important;
+  }
+
+  .premium-product-card .product-card-stats {
+    gap: 0.5rem !important;
+    margin: 0 !important;
+    padding: 0.62rem 0.7rem !important;
+    border: 0 !important;
+    border-radius: 14px !important;
+    background: #f8fafc !important;
+  }
+
+  .premium-product-card .product-card-stats span {
+    margin-bottom: 0.1rem !important;
+    font-size: 0.58rem !important;
+    letter-spacing: 0.08em !important;
+  }
+
+  .premium-product-card .product-card-stats strong {
+    font-size: 0.86rem !important;
+  }
+
+  .premium-product-card
+  .product-card-actions-compact {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
+    margin-top: 0 !important;
+  }
+
+  .premium-product-card .product-action-btn,
+  .premium-product-card
+  .product-more-actions > summary {
+    min-height: 42px !important;
+    border-radius: 13px !important;
+    padding: 0.55rem 0.58rem !important;
+    font-size: 0.76rem !important;
+  }
+
+  .premium-product-card
+  .product-more-actions-panel {
+    grid-template-columns: 1fr !important;
+  }
+
+  .premium-product-card
+  .product-more-actions-panel
+  .product-action-btn.danger {
+    border-color: #fecaca !important;
+    background: #fff7f7 !important;
+    color: #991b1b !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .premium-product-card
+  .product-card-actions-compact {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* === STOREPLUG COMPACT PRODUCT CARD ACTIONS END === */
+/* === STOREPLUG PRODUCT WORKSPACE FINAL POLISH START === */
+
+.success-box-products {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  background: #ecfdf3;
+  color: #166534;
+  box-shadow: 0 8px 22px rgba(22, 101, 52, 0.08);
+  font-size: 0.82rem;
+  font-weight: 820;
+  line-height: 1.3;
+}
+
+.success-box-products::before {
+  content: "\2713";
+  display: grid;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  background: #16a34a;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.product-more-actions-trigger {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.45rem !important;
+  border-color: #dbe3ee !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+}
+
+.product-more-actions-trigger > span {
+  color: #64748b;
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+
+.product-more-actions-trigger[aria-expanded="true"] {
+  border-color: #cbd5e1 !important;
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.product-card-actions-compact
+.product-more-actions-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0;
+  padding: 0.58rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 15px;
+  background: #f8fafc;
+  animation:
+    storeplug-product-actions-reveal
+    140ms ease-out;
+}
+
+.product-card-actions-compact
+.product-more-actions-panel
+.product-action-btn {
+  min-height: 42px !important;
+  margin: 0 !important;
+}
+
+@keyframes storeplug-product-actions-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 820px) {
+  .topbar-products {
+    grid-template-columns:
+      minmax(0, 1fr)
+      auto !important;
+    align-items: center !important;
+    gap: 0.45rem 0.7rem !important;
+    padding: 0.78rem 0.82rem !important;
+    margin-bottom: 0.7rem !important;
+    border: 1px solid rgba(226, 232, 240, 0.95) !important;
+    box-shadow:
+      0 10px 26px rgba(15, 23, 42, 0.045) !important;
+  }
+
+  .topbar-products > div {
+    min-width: 0 !important;
+  }
+
+  .topbar-products h1 {
+    font-size: 1.3rem !important;
+    line-height: 1.04 !important;
+  }
+
+  .topbar-products .muted {
+    margin-top: 0.24rem !important;
+    font-size: 0.78rem !important;
+    line-height: 1.3 !important;
+  }
+
+  .topbar-products > button {
+    min-height: 36px !important;
+    justify-self: end !important;
+    padding: 0.5rem 0.68rem !important;
+    border: 1px solid #dbe3ee !important;
+    background: #ffffff !important;
+    color: #334155 !important;
+    box-shadow: none !important;
+    font-size: 0.76rem !important;
+  }
+
+  .success-box-products {
+    margin-bottom: 0.65rem;
+    padding: 0.58rem 0.7rem;
+    border-radius: 11px;
+    font-size: 0.76rem;
+  }
+
+  .product-card-actions-compact
+  .product-more-actions-panel {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.45rem !important;
+    padding: 0.5rem !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .topbar-products {
+    grid-template-columns: 1fr !important;
+  }
+
+  .topbar-products > button {
+    justify-self: start !important;
+  }
+
+  .product-card-actions-compact
+  .product-more-actions-panel {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-card-actions-compact
+  .product-more-actions-panel {
+    animation: none;
+  }
+}
+
+/* === STOREPLUG PRODUCT WORKSPACE FINAL POLISH END === */
+
+/* === STOREPLUG ACTIONS BUTTON ASCII REPAIR START === */
+
+.product-more-actions-trigger {
+  white-space: nowrap !important;
+  gap: 0.38rem !important;
+}
+
+.product-more-actions-trigger > span {
+  flex: 0 0 auto;
+  font-family: Arial, sans-serif;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+/* === STOREPLUG ACTIONS BUTTON ASCII REPAIR END === */

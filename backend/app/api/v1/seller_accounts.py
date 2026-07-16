@@ -8,15 +8,17 @@ from fastapi import (
     HTTPException,
     status,
 )
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_platform_admin
 from app.db.session import get_db
 from app.models import (
+    Product,
     SellerAccountEvent,
     SellerInvitation,
     Store,
+    SubscriptionPayment,
     User,
 )
 from app.schemas.seller import (
@@ -26,6 +28,10 @@ from app.schemas.seller import (
     AdminSellerDetailResponse,
     AdminSellerInvitationSummary,
     AdminSellerStoreSummary,
+    AdminSellerSubscriptionPaymentSummary,
+)
+from app.services.store_publication import (
+    get_admin_publish_blockers,
 )
 from app.services.seller_listing import (
     derive_account_status,
@@ -99,7 +105,18 @@ async def _load_merchant(
 
 def _store_summary(
     store: Store,
+    *,
+    owner: User,
+    active_product_count: int,
+    now: datetime,
 ) -> AdminSellerStoreSummary:
+    publish_blockers = get_admin_publish_blockers(
+        store=store,
+        owner=owner,
+        active_product_count=active_product_count,
+        now=now,
+    )
+
     return AdminSellerStoreSummary(
         id=store.id,
         name=store.name,
@@ -114,10 +131,14 @@ def _store_summary(
             store.subscription_status
         ),
         monthly_fee=store.monthly_fee,
+        active_product_count=active_product_count,
+        publish_ready=not publish_blockers,
+        publish_blockers=publish_blockers,
         trial_ends_at=store.trial_ends_at,
         subscription_ends_at=(
             store.subscription_ends_at
         ),
+        last_payment_at=store.last_payment_at,
         created_at=store.created_at,
         updated_at=store.updated_at,
     )
@@ -245,10 +266,88 @@ async def get_admin_seller_detail(
         in event_result.all()
     ]
 
+    store_ids = [store.id for store in stores]
+    active_product_counts: dict[UUID, int] = {}
+
+    if store_ids:
+        product_count_result = await db.execute(
+            select(
+                Product.store_id,
+                func.count(Product.id),
+            )
+            .where(
+                Product.store_id.in_(store_ids),
+                Product.is_active.is_(True),
+            )
+            .group_by(Product.store_id)
+        )
+
+        active_product_counts = {
+            store_id: int(product_count)
+            for store_id, product_count
+            in product_count_result.all()
+        }
+
     store_summaries = [
-        _store_summary(store)
+        _store_summary(
+            store,
+            owner=seller,
+            active_product_count=(
+                active_product_counts.get(
+                    store.id,
+                    0,
+                )
+            ),
+            now=now,
+        )
         for store in stores
     ]
+
+    subscription_payments = []
+
+    if store_ids:
+        payment_result = await db.execute(
+            select(
+                SubscriptionPayment,
+                User.email,
+            )
+            .outerjoin(
+                User,
+                User.id
+                == SubscriptionPayment.approved_by_user_id,
+            )
+            .where(
+                SubscriptionPayment.store_id.in_(
+                    store_ids
+                )
+            )
+            .order_by(
+                SubscriptionPayment.paid_at.desc(),
+                SubscriptionPayment.id.desc(),
+            )
+            .limit(50)
+        )
+
+        subscription_payments = [
+            AdminSellerSubscriptionPaymentSummary(
+                id=payment.id,
+                store_id=payment.store_id,
+                plan_name=payment.plan_name,
+                amount=payment.amount,
+                currency=payment.currency,
+                payment_method=payment.payment_method,
+                payment_reference=(
+                    payment.payment_reference
+                ),
+                note=payment.note,
+                covered_days=payment.covered_days,
+                approved_by_email=approved_by_email,
+                paid_at=payment.paid_at,
+                created_at=payment.created_at,
+            )
+            for payment, approved_by_email
+            in payment_result.all()
+        ]
 
     return AdminSellerDetailResponse(
         seller_id=seller.id,
@@ -277,6 +376,12 @@ async def get_admin_seller_detail(
             account_events
         ),
         account_events=account_events,
+        subscription_payment_count=len(
+            subscription_payments
+        ),
+        subscription_payments=(
+            subscription_payments
+        ),
         created_at=seller.created_at,
         updated_at=seller.updated_at,
     )

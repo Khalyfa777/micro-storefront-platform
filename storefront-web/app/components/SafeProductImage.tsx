@@ -1,6 +1,9 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
+import {
+  resolveStorefrontMediaUrl,
+} from "../lib/api-url";
 
 type SafeProductImageProps = {
   imageUrl?: string | null;
@@ -15,32 +18,6 @@ function getInitial(productName: string) {
   return cleanName.charAt(0).toUpperCase() || "P";
 }
 
-function resolveImageUrl(raw?: string | null) {
-  const value = String(raw ?? "").trim();
-
-  if (!value || value === "null" || value === "undefined") {
-    return "";
-  }
-
-  if (value.startsWith("data:image/")) return value;
-  if (/^https?:\/\//i.test(value)) return value;
-
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
-  let apiOrigin = "";
-
-  try {
-    apiOrigin = new URL(apiUrl).origin;
-  } catch {
-    apiOrigin = "";
-  }
-
-  if (apiOrigin && (value.startsWith("/static/") || value.startsWith("/uploads/"))) {
-    return apiOrigin + value;
-  }
-
-  return "";
-}
-
 export default function SafeProductImage({
   imageUrl,
   productName,
@@ -52,7 +29,9 @@ export default function SafeProductImage({
   const imageClassName = ["product-image", className].filter(Boolean).join(" ");
 
   useEffect(() => {
-    const resolved = resolveImageUrl(imageUrl);
+    const resolved = resolveStorefrontMediaUrl(
+      imageUrl,
+    );
 
     if (!resolved) {
       setSafeSrc("");

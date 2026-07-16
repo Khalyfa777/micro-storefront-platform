@@ -6,9 +6,13 @@ from uuid import UUID
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Field,
     field_validator,
 )
 
+from app.utils.phone import (
+    normalize_ghana_whatsapp_number,
+)
 from app.utils.slug import (
     validate_canonical_slug,
     validate_store_name,
@@ -18,13 +22,13 @@ from app.utils.slug import (
 class StoreCreate(BaseModel):
     slug: str
     name: str
-    bio: str | None = None
-    logo_url: str | None = None
-    banner_url: str | None = None
+    bio: str | None = Field(default=None, max_length=2000)
+    logo_url: str | None = Field(default=None, max_length=500)
+    banner_url: str | None = Field(default=None, max_length=500)
     whatsapp_number: str | None = None
-    social_links: dict | None = None
-    category: str | None = None
-    theme: Any = None
+    social_links: dict[str, str] | None = None
+    category: str | None = Field(default=None, max_length=50)
+    theme: str = Field(default="default", max_length=50)
 
     @field_validator("slug")
     @classmethod
@@ -44,17 +48,51 @@ class StoreCreate(BaseModel):
     ) -> str:
         return validate_store_name(value)
 
+    @field_validator(
+        "bio",
+        "logo_url",
+        "banner_url",
+        "category",
+        mode="before",
+    )
+    @classmethod
+    def normalize_optional_text(
+        cls,
+        value: object,
+    ) -> object:
+        if value is None or not isinstance(value, str):
+            return value
+
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("whatsapp_number", mode="before")
+    @classmethod
+    def validate_whatsapp_number(
+        cls,
+        value: object,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        if not isinstance(value, str):
+            raise ValueError(
+                "WhatsApp number must be text."
+            )
+
+        return normalize_ghana_whatsapp_number(value)
+
 
 class StoreUpdate(BaseModel):
     slug: str | None = None
     name: str | None = None
-    bio: str | None = None
-    logo_url: str | None = None
-    banner_url: str | None = None
+    bio: str | None = Field(default=None, max_length=2000)
+    logo_url: str | None = Field(default=None, max_length=500)
+    banner_url: str | None = Field(default=None, max_length=500)
     whatsapp_number: str | None = None
-    social_links: dict | None = None
-    category: str | None = None
-    theme: Any = None
+    social_links: dict[str, str] | None = None
+    category: str | None = Field(default=None, max_length=50)
+    theme: str | None = Field(default=None, max_length=50)
 
     @field_validator("slug")
     @classmethod
@@ -83,6 +121,41 @@ class StoreUpdate(BaseModel):
             )
 
         return validate_store_name(value)
+
+    @field_validator(
+        "bio",
+        "logo_url",
+        "banner_url",
+        "category",
+        "theme",
+        mode="before",
+    )
+    @classmethod
+    def normalize_optional_text(
+        cls,
+        value: object,
+    ) -> object:
+        if value is None or not isinstance(value, str):
+            return value
+
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("whatsapp_number", mode="before")
+    @classmethod
+    def validate_whatsapp_number(
+        cls,
+        value: object,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        if not isinstance(value, str):
+            raise ValueError(
+                "WhatsApp number must be text."
+            )
+
+        return normalize_ghana_whatsapp_number(value)
 
 
 class StoreResponse(BaseModel):

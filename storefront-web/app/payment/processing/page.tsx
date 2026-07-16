@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  resolveStorefrontApiBaseUrl,
+} from "../../lib/api-url";
 
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_URL =
+  resolveStorefrontApiBaseUrl();
 export default function PaymentProcessingPage() {
   const [status, setStatus] = useState("Verifying your payment...");
   const [orderNumber, setOrderNumber] = useState("");

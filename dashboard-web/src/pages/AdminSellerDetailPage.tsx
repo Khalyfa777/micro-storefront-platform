@@ -4,6 +4,11 @@ import {
   useState,
 } from "react";
 
+import {
+  clearPersistentIdempotencyAttempt,
+  getOrCreatePersistentIdempotencyAttempt,
+} from "../utils/idempotency";
+
 import type {
   AdminSellerAccountActionResponse,
   AdminSellerDetailResponse,
@@ -33,6 +38,7 @@ type BusyAction =
   | "cancel"
   | "publish"
   | "unpublish"
+  | "subscription"
   | null;
 
 
@@ -42,6 +48,31 @@ type AdminSellerDetailPageProps = {
   onBack: () => void;
   onSellerChanged:
     () => void | Promise<void>;
+};
+
+
+type AdminSubscriptionPlanOption = {
+  name: string;
+  display_name: string;
+  monthly_fee: string | number;
+  is_active: boolean;
+  is_quote_only?: boolean;
+};
+
+
+type SubscriptionFormState = {
+  storeId: string;
+  planName: string;
+  amountPaid: string;
+  extendDays: string;
+  paymentMethod:
+    | "manual"
+    | "momo"
+    | "bank"
+    | "cash"
+    | "paystack";
+  paymentReference: string;
+  note: string;
 };
 
 
@@ -91,10 +122,68 @@ function formatMoney(
     {
       style: "currency",
       currency: "GHS",
+      currencyDisplay: "code",
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
     },
   ).format(numeric);
+}
+
+
+function isQuoteOnlyPlan(
+  plan?: AdminSubscriptionPlanOption | null,
+): boolean {
+  return Boolean(
+    plan?.is_quote_only ||
+    plan?.name === "custom"
+  );
+}
+
+
+function formatPlanCatalogPrice(
+  plan?: AdminSubscriptionPlanOption | null,
+): string {
+  if (!plan) {
+    return "Standard price unavailable";
+  }
+
+  if (isQuoteOnlyPlan(plan)) {
+    return "Custom quote";
+  }
+
+  return `${formatMoney(plan.monthly_fee)}/month`;
+}
+
+
+function getComputedStoreSubscriptionStatus(
+  store: AdminSellerStoreSummary,
+): string {
+  const status = store.subscription_status || "trial";
+
+  if (store.is_suspended || status === "suspended") {
+    return "suspended";
+  }
+
+  if (status === "trial" || status === "active") {
+    const expiryValue = status === "trial"
+      ? store.trial_ends_at
+      : store.subscription_ends_at;
+
+    if (!expiryValue) {
+      return "expired";
+    }
+
+    const expiryTime = new Date(expiryValue).getTime();
+
+    if (
+      !Number.isFinite(expiryTime) ||
+      expiryTime <= Date.now()
+    ) {
+      return "expired";
+    }
+  }
+
+  return status;
 }
 
 
@@ -234,9 +323,81 @@ export function AdminSellerDetailPage({
     setCopied,
   ] = useState(false);
 
+  const [
+    subscriptionPlans,
+    setSubscriptionPlans,
+  ] = useState<
+    AdminSubscriptionPlanOption[]
+  >([]);
+
+  const [
+    loadingSubscriptionPlans,
+    setLoadingSubscriptionPlans,
+  ] = useState(false);
+
+  const [
+    subscriptionPlanError,
+    setSubscriptionPlanError,
+  ] = useState("");
+
+  const [
+    subscriptionForm,
+    setSubscriptionForm,
+  ] = useState<SubscriptionFormState | null>(
+    null,
+  );
+
+  const subscriptionAttemptRef = useRef<{
+    fingerprint: string;
+    idempotencyKey: string;
+    storageKey: string | null;
+  } | null>(null);
+
   useEffect(() => {
     requestRef.current = apiFetch;
   }, [apiFetch]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSubscriptionPlans() {
+      setLoadingSubscriptionPlans(true);
+      setSubscriptionPlanError("");
+
+      try {
+        const response =
+          await requestRef.current(
+            "/admin/subscription-plans",
+          ) as AdminSubscriptionPlanOption[];
+
+        if (!cancelled) {
+          setSubscriptionPlans(
+            response.filter(
+              (plan) => plan.is_active,
+            ),
+          );
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSubscriptionPlanError(
+            error instanceof Error
+              ? error.message
+              : "Could not load subscription plans.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingSubscriptionPlans(false);
+        }
+      }
+    }
+
+    void loadSubscriptionPlans();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sellerId]);
 
   useEffect(() => {
     window.scrollTo({
@@ -371,10 +532,11 @@ export function AdminSellerDetailPage({
 
     if (
       action === "publish" &&
-      seller.setup_status !== "completed"
+      !store.publish_ready
     ) {
       setActionError(
-        "The seller must accept the invitation and complete account setup before the store can be published.",
+        store.publish_blockers.join(" ") ||
+          "The store is not ready to publish.",
       );
       return;
     }
@@ -451,6 +613,184 @@ export function AdminSellerDetailPage({
     } finally {
       setBusyAction(null);
       setPublicationStoreId(null);
+    }
+  }
+
+
+  function getSubscriptionPlan(
+    planName: string,
+  ) {
+    return subscriptionPlans.find(
+      (plan) => plan.name === planName,
+    );
+  }
+
+
+  function openSubscriptionManager(
+    store: AdminSellerStoreSummary,
+  ) {
+    const plan = getSubscriptionPlan(
+      store.plan_name,
+    );
+
+    setActionError("");
+    setActionMessage("");
+    subscriptionAttemptRef.current = null;
+
+    setSubscriptionForm({
+      storeId: store.id,
+      planName: store.plan_name,
+      amountPaid: isQuoteOnlyPlan(plan)
+        ? Number(store.monthly_fee) > 0
+          ? String(store.monthly_fee)
+          : ""
+        : String(
+            plan?.monthly_fee
+            ?? store.monthly_fee
+            ?? "",
+          ),
+      extendDays: "30",
+      paymentMethod: "momo",
+      paymentReference: "",
+      note: store.subscription_status === "active"
+        ? "Subscription renewal"
+        : "Paid subscription start",
+    });
+  }
+
+
+  async function submitSubscription(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    if (!subscriptionForm || busyAction) {
+      return;
+    }
+
+    const amountPaid = Number(
+      subscriptionForm.amountPaid,
+    );
+
+    const extendDays = Number(
+      subscriptionForm.extendDays,
+    );
+
+    if (
+      !Number.isFinite(amountPaid) ||
+      amountPaid <= 0
+    ) {
+      setActionError(
+        "Enter the amount received for this paid subscription.",
+      );
+      return;
+    }
+
+    if (
+      !Number.isInteger(extendDays) ||
+      extendDays < 1 ||
+      extendDays > 366
+    ) {
+      setActionError(
+        "Subscription duration must be between 1 and 366 days.",
+      );
+      return;
+    }
+
+    const requestBody = {
+      plan_name:
+        subscriptionForm.planName,
+      amount_paid: amountPaid,
+      extend_days: extendDays,
+      payment_method:
+        subscriptionForm.paymentMethod,
+      payment_reference:
+        subscriptionForm.paymentReference
+          .trim() || null,
+      note:
+        subscriptionForm.note.trim() ||
+        null,
+      mark_active: true,
+    };
+
+    const requestFingerprint = JSON.stringify({
+      storeId: subscriptionForm.storeId,
+      requestBody,
+    });
+
+    if (
+      subscriptionAttemptRef.current
+        ?.fingerprint !== requestFingerprint
+    ) {
+      const persistentAttempt =
+        await getOrCreatePersistentIdempotencyAttempt(
+          "subscription-payment",
+          requestFingerprint,
+          "subscription",
+        );
+
+      subscriptionAttemptRef.current = {
+        fingerprint:
+          requestFingerprint,
+        idempotencyKey:
+          persistentAttempt
+            .idempotencyKey,
+        storageKey:
+          persistentAttempt
+            .storageKey,
+      };
+    }
+
+    const activeAttempt =
+      subscriptionAttemptRef.current;
+
+    const idempotencyKey =
+      activeAttempt.idempotencyKey;
+
+    setBusyAction("subscription");
+    setActionError("");
+    setActionMessage("");
+
+    try {
+      await requestRef.current(
+        `/admin/stores/${subscriptionForm.storeId}/subscription/extend`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key":
+              idempotencyKey,
+          },
+          body: JSON.stringify(
+            requestBody,
+          ),
+        },
+      );
+
+      setActionMessage(
+        "Payment recorded and subscription billing period updated.",
+      );
+
+      clearPersistentIdempotencyAttempt(
+        activeAttempt.storageKey,
+      );
+
+      subscriptionAttemptRef.current = null;
+      setSubscriptionForm(null);
+
+      setReloadKey(
+        (current) => current + 1,
+      );
+
+      syncSellerList();
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Could not record the paid subscription.",
+      );
+    } finally {
+      setBusyAction(null);
     }
   }
 
@@ -1221,18 +1561,49 @@ export function AdminSellerDetailPage({
                       <span>Subscription</span>
                       <strong>
                         {formatLabel(
-                          store.subscription_status,
+                          getComputedStoreSubscriptionStatus(
+                            store,
+                          ),
                         )}
                       </strong>
                     </div>
 
-                    <div>
-                      <span>Monthly fee</span>
+                    <div className="seller-store-charge">
+                      <span>
+                        {store.subscription_status ===
+                        "trial"
+                          ? "Trial charge"
+                          : "Monthly fee"}
+                      </span>
                       <strong>
-                        {formatMoney(
-                          store.monthly_fee,
-                        )}
+                        {store.subscription_status ===
+                        "trial"
+                          ? getComputedStoreSubscriptionStatus(
+                              store,
+                            ) === "expired"
+                            ? "Trial ended"
+                            : "GHS 0 during trial"
+                          : formatMoney(
+                              store.monthly_fee,
+                            )}
                       </strong>
+                      {store.subscription_status ===
+                        "trial" && (
+                        <small>
+                          {loadingSubscriptionPlans
+                            ? "Loading standard price..."
+                            : (
+                                <>
+                                  Standard price:{" "}
+                                  {formatPlanCatalogPrice(
+                                    getSubscriptionPlan(
+                                      store.plan_name,
+                                    ),
+                                  )}
+                                </>
+                              )}
+                        </small>
+                      )}
                     </div>
 
                     <div>
@@ -1246,27 +1617,323 @@ export function AdminSellerDetailPage({
                       </strong>
                     </div>
 
-                    <div>
-                      <span>Trial ends</span>
-                      <strong>
-                        {formatDateTime(
-                          store.trial_ends_at,
-                        )}
-                      </strong>
-                    </div>
+                    {store.subscription_status ===
+                    "trial" ? (
+                      <div>
+                        <span>Trial ends</span>
+                        <strong>
+                          {formatDateTime(
+                            store.trial_ends_at,
+                          )}
+                        </strong>
+                      </div>
+                    ) : (
+                      <div>
+                        <span>Last payment</span>
+                        <strong>
+                          {formatDateTime(
+                            store.last_payment_at,
+                          )}
+                        </strong>
+                      </div>
+                    )}
 
                     <div>
                       <span>
-                        Subscription ends
+                        {store.subscription_status ===
+                        "trial"
+                          ? "Paid subscription"
+                          : "Subscription ends"}
                       </span>
                       <strong>
-                        {formatDateTime(
-                          store
-                            .subscription_ends_at,
-                        )}
+                        {store.subscription_status ===
+                        "trial"
+                          ? "Not activated"
+                          : formatDateTime(
+                              store
+                                .subscription_ends_at,
+                            )}
                       </strong>
                     </div>
                   </div>
+
+                  <div className="seller-store-subscription">
+                    <div>
+                      <p className="seller-page-eyebrow">
+                        Billing
+                      </p>
+                      <strong>
+                        {getComputedStoreSubscriptionStatus(
+                          store,
+                        ) === "active"
+                          ? "Paid subscription active"
+                          : "Convert to a paid plan"}
+                      </strong>
+                      <p>
+                        Record the payment, choose the
+                        plan, and grant paid access in
+                        one action. Remaining trial or
+                        paid time is preserved.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="seller-primary-button"
+                      onClick={() =>
+                        openSubscriptionManager(store)
+                      }
+                      disabled={
+                        busyAction !== null ||
+                        loadingSubscriptionPlans
+                      }
+                    >
+                      {getComputedStoreSubscriptionStatus(
+                        store,
+                      ) === "active"
+                        ? "Renew or change plan"
+                        : "Activate paid plan"}
+                    </button>
+                  </div>
+
+                  {subscriptionPlanError && (
+                    <p className="seller-inline-error">
+                      {subscriptionPlanError}
+                    </p>
+                  )}
+
+                  {subscriptionForm?.storeId ===
+                    store.id && (
+                    <form
+                      className="seller-subscription-form"
+                      onSubmit={(event) =>
+                        void submitSubscription(event)
+                      }
+                    >
+                      <div className="seller-subscription-form-heading">
+                        <div>
+                          <p className="seller-page-eyebrow">
+                            Payment confirmation
+                          </p>
+                          <h5>
+                            Activate or renew subscription
+                          </h5>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="seller-text-button"
+                          onClick={() => {
+                            subscriptionAttemptRef.current = null;
+                            setSubscriptionForm(null);
+                          }}
+                          disabled={
+                            busyAction === "subscription"
+                          }
+                        >
+                          Close
+                        </button>
+                      </div>
+
+                      <div className="seller-subscription-fields">
+                        <label>
+                          <span>Plan</span>
+                          <select
+                            value={
+                              subscriptionForm.planName
+                            }
+                            onChange={(event) => {
+                              const planName =
+                                event.target.value;
+                              const plan =
+                                getSubscriptionPlan(
+                                  planName,
+                                );
+
+                              setSubscriptionForm(
+                                (current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        planName,
+                                        amountPaid:
+                                          isQuoteOnlyPlan(
+                                            plan,
+                                          )
+                                            ? ""
+                                            : String(
+                                                plan
+                                                  ?.monthly_fee
+                                                ?? current
+                                                  .amountPaid,
+                                              ),
+                                      }
+                                    : current,
+                              );
+                            }}
+                            required
+                          >
+                            {subscriptionPlans.map(
+                              (plan) => (
+                                <option
+                                  key={plan.name}
+                                  value={plan.name}
+                                >
+                                  {plan.display_name} - {isQuoteOnlyPlan(plan)
+                                    ? "Quote only"
+                                    : formatMoney(plan.monthly_fee)}
+                                </option>
+                              ),
+                            )}
+                          </select>
+                        </label>
+
+                        <label>
+                          <span>Amount received (GHS)</span>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={
+                              subscriptionForm.amountPaid
+                            }
+                            onChange={(event) =>
+                              setSubscriptionForm(
+                                (current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        amountPaid:
+                                          event.target.value,
+                                      }
+                                    : current,
+                              )
+                            }
+                            required
+                          />
+                        </label>
+
+                        <label>
+                          <span>Access days</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max="366"
+                            step="1"
+                            value={
+                              subscriptionForm.extendDays
+                            }
+                            onChange={(event) =>
+                              setSubscriptionForm(
+                                (current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        extendDays:
+                                          event.target.value,
+                                      }
+                                    : current,
+                              )
+                            }
+                            required
+                          />
+                        </label>
+
+                        <label>
+                          <span>Payment method</span>
+                          <select
+                            value={
+                              subscriptionForm
+                                .paymentMethod
+                            }
+                            onChange={(event) =>
+                              setSubscriptionForm(
+                                (current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        paymentMethod:
+                                          event.target.value as SubscriptionFormState["paymentMethod"],
+                                      }
+                                    : current,
+                              )
+                            }
+                          >
+                            <option value="momo">Mobile money</option>
+                            <option value="cash">Cash</option>
+                            <option value="bank">Bank transfer</option>
+                            <option value="manual">Manual</option>
+                            <option value="paystack">Paystack</option>
+                          </select>
+                        </label>
+
+                        <label>
+                          <span>Payment reference</span>
+                          <input
+                            maxLength={100}
+                            value={
+                              subscriptionForm
+                                .paymentReference
+                            }
+                            onChange={(event) =>
+                              setSubscriptionForm(
+                                (current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        paymentReference:
+                                          event.target.value,
+                                      }
+                                    : current,
+                              )
+                            }
+                            placeholder="MoMo transaction or receipt ID"
+                          />
+                        </label>
+
+                        <label className="seller-subscription-note">
+                          <span>Internal note</span>
+                          <textarea
+                            maxLength={500}
+                            value={
+                              subscriptionForm.note
+                            }
+                            onChange={(event) =>
+                              setSubscriptionForm(
+                                (current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        note:
+                                          event.target.value,
+                                      }
+                                    : current,
+                              )
+                            }
+                          />
+                        </label>
+                      </div>
+
+                      <div className="seller-subscription-actions">
+                        <p>
+                          Paid access will start after any
+                          remaining valid trial or paid
+                          period.
+                        </p>
+                        <button
+                          type="submit"
+                          className="seller-primary-button"
+                          disabled={
+                            busyAction !== null
+                          }
+                        >
+                          {busyAction === "subscription"
+                            ? "Recording payment..."
+                            : "Confirm paid subscription"}
+                        </button>
+                      </div>
+                    </form>
+                  )}
 
                   <div className="seller-store-publication">
                     <div>
@@ -1281,10 +1948,12 @@ export function AdminSellerDetailPage({
                         {store.publication_status ===
                         "published"
                           ? "Customers can view this storefront and create new orders."
-                          : seller.setup_status !==
-                              "completed"
-                            ? "The seller must complete invitation setup before publishing."
-                            : "Publishing requires a valid trial or subscription and at least one active product."}
+                          : store.publish_ready
+                            ? "All publication requirements are satisfied."
+                            : store.publish_blockers.join(
+                                " ",
+                              ) ||
+                              "The store is not ready to publish."}
                       </p>
                     </div>
 
@@ -1310,8 +1979,7 @@ export function AdminSellerDetailPage({
                         (
                           store.publication_status !==
                             "published" &&
-                          seller.setup_status !==
-                            "completed"
+                          !store.publish_ready
                         )
                       }
                     >
@@ -1332,6 +2000,93 @@ export function AdminSellerDetailPage({
                   </div>
                 </article>
               ))}
+            </div>
+          )}
+        </section>
+
+        <section className="seller-detail-panel seller-detail-panel-full">
+          <div className="seller-detail-panel-heading">
+            <div>
+              <p className="seller-page-eyebrow">
+                Billing history
+              </p>
+              <h3>Subscription payments</h3>
+              <p>
+                Confirmed payments recorded by a
+                platform administrator.
+              </p>
+            </div>
+            <span className="seller-detail-count">
+              {seller.subscription_payment_count}
+            </span>
+          </div>
+
+          {seller.subscription_payments.length ===
+          0 ? (
+            <div className="seller-detail-empty">
+              No paid subscriptions have been
+              recorded yet.
+            </div>
+          ) : (
+            <div className="seller-payment-history">
+              {seller.subscription_payments.map(
+                (payment) => (
+                  <article key={payment.id}>
+                    <div className="seller-payment-main">
+                      <div>
+                        <span>
+                          {formatLabel(
+                            payment.plan_name,
+                          )}
+                        </span>
+                        <strong>
+                          {formatMoney(
+                            payment.amount,
+                          )}
+                        </strong>
+                      </div>
+                      <span className="seller-payment-method">
+                        {formatLabel(
+                          payment.payment_method,
+                        )}
+                      </span>
+                    </div>
+                    <dl>
+                      <div>
+                        <dt>Paid</dt>
+                        <dd>
+                          {formatDateTime(
+                            payment.paid_at,
+                          )}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Access</dt>
+                        <dd>
+                          {payment.covered_days} days
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Reference</dt>
+                        <dd>
+                          {payment.payment_reference ||
+                            "Not provided"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Recorded by</dt>
+                        <dd>
+                          {payment.approved_by_email ||
+                            "Platform admin"}
+                        </dd>
+                      </div>
+                    </dl>
+                    {payment.note && (
+                      <p>{payment.note}</p>
+                    )}
+                  </article>
+                ),
+              )}
             </div>
           )}
         </section>

@@ -5,6 +5,9 @@ import App from "./App.tsx";
 import {
   AcceptInvitationPage,
 } from "./pages/AcceptInvitationPage";
+import {
+  resolveDashboardApiBaseUrl,
+} from "./utils/api-url";
 
 import "./index.css";
 import "./mobile-shell.css";
@@ -22,8 +25,7 @@ declare global {
 
 
 const apiBaseUrl =
-  import.meta.env.VITE_API_URL ||
-  "http://localhost:8000/api/v1";
+  resolveDashboardApiBaseUrl();
 
 
 const normalizedPath =

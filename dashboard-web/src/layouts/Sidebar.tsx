@@ -1,3 +1,7 @@
+import {
+  buildPublicStoreUrl,
+} from "../utils/public-store-url";
+
 type DashboardTab =
   | "orders"
   | "products"
@@ -11,6 +15,9 @@ type StoreOption = {
   id: string;
   name: string;
   slug: string;
+  publication_status:
+    | "draft"
+    | "published";
 };
 
 type SidebarProps = {
@@ -224,12 +231,13 @@ export function Sidebar({
           )}
 
           <div className="nav-group nav-footer">
-            {selectedStore && (
+            {selectedStore?.publication_status ===
+              "published" && (
               <a
                 className="public-link"
-                href={`${publicStoreUrl}/${selectedStore.slug}`}
+                href={buildPublicStoreUrl(publicStoreUrl, selectedStore.slug)}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
               >
                 Open public store
               </a>

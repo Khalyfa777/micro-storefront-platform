@@ -62,7 +62,7 @@ export function AdminPaymentsPage({
   formatSubscriptionDate,
 }: AdminPaymentsPageProps) {
   return (
-    <div className="admin-stores-panel">
+    <div className="admin-stores-panel admin-subscription-payments-page">
       <div className="admin-stores-header">
         <div>
           <h3>Subscription payment history</h3>
@@ -88,11 +88,12 @@ export function AdminPaymentsPage({
         <p className="muted">Click Refresh payments to load recent payments.</p>
       ) : (
         <>
-          <div className="admin-store-search">
+          <div className="admin-store-search subscription-payment-search">
             <input
               value={subscriptionPaymentSearch}
               onChange={(e) => setSubscriptionPaymentSearch(e.target.value)}
-              placeholder="Search payments by store, reference, method, admin, or note..."
+              placeholder="Search payments, stores or references"
+              aria-label="Search subscription payments"
             />
 
             {subscriptionPaymentSearch && (
@@ -117,7 +118,7 @@ export function AdminPaymentsPage({
 
           <div className="admin-store-list">
             {filteredSubscriptionPayments.map((payment) => (
-              <div className="admin-store-card" key={payment.id}>
+              <article className="admin-store-card subscription-payment-card" key={payment.id}>
                 <div>
                   <h4>{payment.store_name}</h4>
                   <p>/{payment.store_slug}</p>
@@ -155,7 +156,7 @@ export function AdminPaymentsPage({
                   <span>Paid</span>
                   <strong>{formatSubscriptionDate(payment.paid_at)}</strong>
                 </div>
-              </div>
+              </article>
             ))}
           </div>
 

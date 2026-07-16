@@ -1,11 +1,13 @@
 type AdminSubscriptionPlanItem = {
   id: string;
   name: string;
+  is_quote_only: boolean;
 };
 
 type SubscriptionPlanDraft = {
   display_name: string;
   monthly_fee: string;
+  is_quote_only: boolean;
   product_limit: string;
   can_upload_images: boolean;
   can_use_custom_domain: boolean;
@@ -91,12 +93,17 @@ export function AdminPlansPage({
                 </label>
 
                 <label>
-                  Monthly fee
+                  {draft.is_quote_only
+                    ? "Monthly fee (quote only)"
+                    : "Monthly fee"}
                   <input
                     type="number"
                     min="0"
                     step="0.01"
-                    value={draft.monthly_fee}
+                    value={draft.is_quote_only
+                      ? "0"
+                      : draft.monthly_fee}
+                    disabled={draft.is_quote_only}
                     onChange={(e) =>
                       updatePlanDraft(plan.name, "monthly_fee", e.target.value)
                     }
@@ -118,6 +125,21 @@ export function AdminPlansPage({
                 </label>
 
                 <div className="plan-checkboxes">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={draft.is_quote_only}
+                      onChange={(e) =>
+                        updatePlanDraft(
+                          plan.name,
+                          "is_quote_only",
+                          e.target.checked,
+                        )
+                      }
+                    />
+                    Quote-only pricing
+                  </label>
+
                   <label>
                     <input
                       type="checkbox"
