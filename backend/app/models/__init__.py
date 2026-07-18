@@ -9,3 +9,8 @@ from app.models.seller_invitation import SellerInvitation
 from app.models.seller_account_event import SellerAccountEvent
 from app.models.store_publication_event import StorePublicationEvent
 from app.models.store_access_event import StoreAccessEvent
+
+from app.models.product_order_field import (
+    ProductOrderField,
+    ProductOrderFieldOption,
+)

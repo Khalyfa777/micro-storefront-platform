@@ -1,10 +1,11 @@
 from uuid import UUID
-from pydantic import BaseModel
+
+from pydantic import BaseModel, EmailStr
 
 
 class PaymentInitializeRequest(BaseModel):
     order_id: UUID
-    customer_email: str | None = None
+    customer_email: EmailStr | None = None
 
 
 class PaymentInitializeResponse(BaseModel):

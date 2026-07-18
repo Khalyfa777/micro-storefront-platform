@@ -475,12 +475,25 @@ type Store = {
   monthly_fee?: string | number;
 };
 
+type OrderConfigurationSnapshot = {
+  key?: string;
+  label?: string;
+  field_type?: string;
+  value?: unknown;
+  display_value?: unknown;
+  is_sensitive?: boolean;
+  include_in_whatsapp?: boolean;
+  price_adjustment?: string | number;
+};
+
 type OrderItem = {
   id: string;
   product_name: string;
   unit_price: string;
   quantity: number;
   line_total: string;
+  selected_options?: Record<string, unknown>;
+  configuration_snapshot?: OrderConfigurationSnapshot[];
 };
 
 type Order = {
@@ -488,15 +501,76 @@ type Order = {
   order_number: string;
   status: string;
   payment_method?: string | null;
+  fulfillment_method?: string | null;
   customer_name: string;
   customer_phone: string;
   customer_email?: string | null;
   delivery_address?: string | null;
+  customer_note?: string | null;
   total: string;
   currency: string;
   inventory_deducted?: boolean;
   created_at: string;
   items: OrderItem[];
+};
+
+type ProductType =
+  | "physical"
+  | "digital"
+  | "subscription"
+  | "service"
+  | "food"
+  | "booking"
+  | "custom";
+
+type FulfillmentMethod =
+  | "delivery"
+  | "pickup"
+  | "digital_delivery"
+  | "activation"
+  | "appointment"
+  | "on_site_service"
+  | "remote_service"
+  | "reservation"
+  | "seller_confirmation";
+
+type ProductOrderFieldType =
+  | "text"
+  | "textarea"
+  | "select"
+  | "radio"
+  | "checkbox"
+  | "number"
+  | "date"
+  | "time"
+  | "datetime"
+  | "phone"
+  | "email";
+
+type ProductOrderFieldOption = {
+  id?: string;
+  value: string;
+  label: string;
+  price_adjustment: string;
+  is_active: boolean;
+  sort_order: number;
+};
+
+type ProductOrderField = {
+  id?: string;
+  product_id?: string;
+  key: string;
+  label: string;
+  field_type: ProductOrderFieldType;
+  placeholder: string;
+  help_text: string;
+  is_required: boolean;
+  is_sensitive: boolean;
+  include_in_whatsapp: boolean;
+  is_active: boolean;
+  sort_order: number;
+  validation_rules: Record<string, unknown>;
+  options: ProductOrderFieldOption[];
 };
 
 type Product = {
@@ -506,7 +580,10 @@ type Product = {
   slug: string;
   description?: string | null;
   image_url?: string | null;
-  product_type: string;
+  product_type: ProductType;
+  default_fulfillment_method: FulfillmentMethod;
+  allowed_fulfillment_methods: FulfillmentMethod[];
+  order_fields: ProductOrderField[];
   price: string;
   stock_quantity?: number | null;
   is_active: boolean;
@@ -518,7 +595,10 @@ type ProductForm = {
   slug: string;
   description: string;
   image_url: string;
-  product_type: string;
+  product_type: ProductType;
+  default_fulfillment_method: FulfillmentMethod;
+  allowed_fulfillment_methods: FulfillmentMethod[];
+  order_fields: ProductOrderField[];
   price: string;
   stock_quantity: string;
   is_active: boolean;
@@ -620,8 +700,15 @@ const emptyProductForm: ProductForm = {
   description: "",
   image_url: "",
   product_type: "physical",
+  default_fulfillment_method: "delivery",
+  allowed_fulfillment_methods: [
+    "delivery",
+    "pickup",
+    "seller_confirmation",
+  ],
+  order_fields: [],
   price: "",
-  stock_quantity: "0",
+  stock_quantity: "",
   is_active: true,
   is_featured: false,
 };
@@ -649,6 +736,237 @@ function getProductDraftStorageKey(
   );
 }
 
+function normalizeProductOrderFieldOptions(
+  value: unknown,
+): ProductOrderFieldOption[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item, index) => {
+    if (
+      !item ||
+      typeof item !== "object" ||
+      Array.isArray(item)
+    ) {
+      return [];
+    }
+
+    const option = item as Record<string, unknown>;
+    const optionValue =
+      typeof option.value === "string"
+        ? option.value
+        : "";
+    const label =
+      typeof option.label === "string"
+        ? option.label
+        : "";
+
+    if (!optionValue && !label) {
+      return [];
+    }
+
+    return [{
+      id:
+        typeof option.id === "string"
+          ? option.id
+          : undefined,
+      value: optionValue,
+      label,
+      price_adjustment:
+        typeof option.price_adjustment === "string" ||
+        typeof option.price_adjustment === "number"
+          ? String(option.price_adjustment)
+          : "0.00",
+      is_active:
+        typeof option.is_active === "boolean"
+          ? option.is_active
+          : true,
+      sort_order:
+        typeof option.sort_order === "number"
+          ? option.sort_order
+          : index,
+    }];
+  });
+}
+
+function normalizeProductOrderFields(
+  value: unknown,
+): ProductOrderField[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const supportedFieldTypes = new Set<ProductOrderFieldType>([
+    "text",
+    "textarea",
+    "select",
+    "radio",
+    "checkbox",
+    "number",
+    "date",
+    "time",
+    "datetime",
+    "phone",
+    "email",
+  ]);
+
+  return value.flatMap((item, index) => {
+    if (
+      !item ||
+      typeof item !== "object" ||
+      Array.isArray(item)
+    ) {
+      return [];
+    }
+
+    const field = item as Record<string, unknown>;
+    const rawFieldType =
+      typeof field.field_type === "string"
+        ? field.field_type
+        : "text";
+    const fieldType = supportedFieldTypes.has(
+      rawFieldType as ProductOrderFieldType,
+    )
+      ? rawFieldType as ProductOrderFieldType
+      : "text";
+    const isSensitive =
+      typeof field.is_sensitive === "boolean"
+        ? field.is_sensitive
+        : false;
+    const validationRules =
+      field.validation_rules &&
+      typeof field.validation_rules === "object" &&
+      !Array.isArray(field.validation_rules)
+        ? field.validation_rules as Record<string, unknown>
+        : {};
+
+    return [{
+      id:
+        typeof field.id === "string"
+          ? field.id
+          : undefined,
+      product_id:
+        typeof field.product_id === "string"
+          ? field.product_id
+          : undefined,
+      key:
+        typeof field.key === "string"
+          ? field.key
+          : `order_field_${index + 1}`,
+      label:
+        typeof field.label === "string"
+          ? field.label
+          : "",
+      field_type: fieldType,
+      placeholder:
+        typeof field.placeholder === "string"
+          ? field.placeholder
+          : "",
+      help_text:
+        typeof field.help_text === "string"
+          ? field.help_text
+          : "",
+      is_required:
+        typeof field.is_required === "boolean"
+          ? field.is_required
+          : false,
+      is_sensitive: isSensitive,
+      include_in_whatsapp: isSensitive
+        ? false
+        : typeof field.include_in_whatsapp === "boolean"
+          ? field.include_in_whatsapp
+          : true,
+      is_active:
+        typeof field.is_active === "boolean"
+          ? field.is_active
+          : true,
+      sort_order:
+        typeof field.sort_order === "number"
+          ? field.sort_order
+          : index,
+      validation_rules: validationRules,
+      options: normalizeProductOrderFieldOptions(
+        field.options,
+      ),
+    }];
+  });
+}
+
+function serializeProductOrderFields(
+  fields: ProductOrderField[],
+) {
+  return fields.map((field, fieldIndex) => ({
+    key: field.key.trim(),
+    label: field.label.trim(),
+    field_type: field.field_type,
+    placeholder: field.placeholder.trim() || null,
+    help_text: field.help_text.trim() || null,
+    is_required: field.is_required,
+    is_sensitive: field.is_sensitive,
+    include_in_whatsapp:
+      field.is_sensitive
+        ? false
+        : field.include_in_whatsapp,
+    is_active: field.is_active,
+    sort_order: fieldIndex,
+    validation_rules: field.validation_rules,
+    options:
+      field.field_type === "select" ||
+      field.field_type === "radio"
+        ? field.options.map((option, optionIndex) => ({
+            value: option.value.trim(),
+            label: option.label.trim(),
+            price_adjustment:
+              option.price_adjustment || "0.00",
+            is_active: option.is_active,
+            sort_order: optionIndex,
+          }))
+        : [],
+  }));
+}
+
+function getOptionPriceAdjustmentError(
+  fields: ProductOrderField[],
+): string {
+  for (const field of fields) {
+    if (
+      field.field_type !== "select" &&
+      field.field_type !== "radio"
+    ) {
+      continue;
+    }
+
+    for (
+      let optionIndex = 0;
+      optionIndex < field.options.length;
+      optionIndex += 1
+    ) {
+      const option = field.options[optionIndex];
+      const rawValue =
+        option.price_adjustment.trim() || "0.00";
+      const amount = Number(rawValue);
+
+      if (
+        !Number.isFinite(amount) ||
+        amount < 0
+      ) {
+        const optionName =
+          option.label.trim() ||
+          `Choice ${optionIndex + 1}`;
+
+        return (
+          `Extra charge for "${optionName}" ` +
+          "must be zero or more."
+        );
+      }
+    }
+  }
+
+  return "";
+}
+
+
 function normalizeStoredProductForm(
   value: unknown,
 ): ProductForm | null {
@@ -664,6 +982,22 @@ function normalizeStoredProductForm(
     string,
     unknown
   >;
+  const productType =
+    typeof form.product_type === "string"
+      ? form.product_type as ProductType
+      : "physical";
+  const defaultFulfillmentMethod =
+    typeof form.default_fulfillment_method === "string"
+      ? form.default_fulfillment_method as FulfillmentMethod
+      : "seller_confirmation";
+  const allowedFulfillmentMethods = Array.isArray(
+    form.allowed_fulfillment_methods,
+  )
+    ? form.allowed_fulfillment_methods.filter(
+        (method): method is FulfillmentMethod =>
+          typeof method === "string",
+      )
+    : [defaultFulfillmentMethod];
 
   return {
     name:
@@ -682,10 +1016,21 @@ function normalizeStoredProductForm(
       typeof form.image_url === "string"
         ? form.image_url
         : "",
-    product_type:
-      typeof form.product_type === "string"
-        ? form.product_type
-        : "physical",
+    product_type: productType,
+    default_fulfillment_method:
+      allowedFulfillmentMethods.includes(
+        defaultFulfillmentMethod,
+      )
+        ? defaultFulfillmentMethod
+        : allowedFulfillmentMethods[0] ||
+          "seller_confirmation",
+    allowed_fulfillment_methods:
+      allowedFulfillmentMethods.length > 0
+        ? allowedFulfillmentMethods
+        : ["seller_confirmation"],
+    order_fields: normalizeProductOrderFields(
+      form.order_fields,
+    ),
     price:
       typeof form.price === "string"
         ? form.price
@@ -693,7 +1038,7 @@ function normalizeStoredProductForm(
     stock_quantity:
       typeof form.stock_quantity === "string"
         ? form.stock_quantity
-        : "0",
+        : "",
     is_active:
       typeof form.is_active === "boolean"
         ? form.is_active
@@ -857,10 +1202,10 @@ function getAllowedOrderStatusActions(status: string): string[] {
 
 function formatOrderStatusActionLabel(status: string): string {
   const labels: Record<string, string> = {
-    paid: "Paid",
+    paid: "Mark as paid",
     processing: "Processing",
     completed: "Completed",
-    cancelled: "Cancelled",
+    cancelled: "Cancel order",
   };
 
   return labels[status] || status;
@@ -1399,6 +1744,19 @@ try {
       description: product.description || "",
       image_url: product.image_url || "",
       product_type: product.product_type,
+      default_fulfillment_method:
+        product.default_fulfillment_method ||
+        "seller_confirmation",
+      allowed_fulfillment_methods:
+        product.allowed_fulfillment_methods?.length > 0
+          ? product.allowed_fulfillment_methods
+          : [
+              product.default_fulfillment_method ||
+              "seller_confirmation",
+            ],
+      order_fields: normalizeProductOrderFields(
+        product.order_fields,
+      ),
       price: String(product.price),
       stock_quantity:
         product.stock_quantity === null || product.stock_quantity === undefined
@@ -1543,14 +1901,28 @@ try {
       return;
     }
 
-    const payload = {
+    const optionPriceAdjustmentError =
+      getOptionPriceAdjustmentError(
+        productForm.order_fields,
+      );
+
+    if (optionPriceAdjustmentError) {
+      setError(optionPriceAdjustmentError);
+      return;
+    }
+
+    const productPayload = {
       name: productForm.name,
       slug: productForm.slug || makeSlug(productForm.name),
       description: productForm.description || null,
       image_url: toPortableDashboardMediaReference(
         productForm.image_url,
       ) || null,
-      product_type: productForm.product_type || "physical",
+      product_type: productForm.product_type,
+      default_fulfillment_method:
+        productForm.default_fulfillment_method,
+      allowed_fulfillment_methods:
+        productForm.allowed_fulfillment_methods,
       price: productForm.price,
       stock_quantity:
         productForm.stock_quantity === ""
@@ -1558,24 +1930,35 @@ try {
           : Number(productForm.stock_quantity),
       is_active: productForm.is_active,
       is_featured: productForm.is_featured,
+      order_fields: serializeProductOrderFields(
+        productForm.order_fields,
+      ),
     };
 
     try {
       if (editingProductId) {
-        await apiFetch(`/stores/${selectedStore.id}/products/${editingProductId}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-
-        setMessage("Product updated.");
+        await apiFetch(
+          `/stores/${selectedStore.id}/products/${editingProductId}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify(productPayload),
+          },
+        );
       } else {
-        await apiFetch(`/stores/${selectedStore.id}/products`, {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-
-        setMessage("Product created.");
+        await apiFetch(
+          `/stores/${selectedStore.id}/products`,
+          {
+            method: "POST",
+            body: JSON.stringify(productPayload),
+          },
+        );
       }
+
+      setMessage(
+        editingProductId
+          ? "Product and order flow updated."
+          : "Product and order flow created.",
+      );
 
       removeStoredProductDraft(
         selectedStore.id,
@@ -1586,7 +1969,11 @@ try {
       await loadProducts(selectedStore.id);
       await loadSubscriptionUsage(selectedStore.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save product");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not save product",
+      );
     }
   }
 

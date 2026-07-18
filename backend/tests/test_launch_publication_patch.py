@@ -49,8 +49,12 @@ class FakeSession:
         self.rollback_count = 0
         self.flush_count = 0
 
-    async def execute(self, statement):
-        del statement
+    async def execute(
+        self,
+        statement,
+        parameters=None,
+    ):
+        del statement, parameters
 
         if not self.results:
             raise AssertionError(

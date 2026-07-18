@@ -147,3 +147,50 @@ def test_fingerprint_does_not_expose_phone():
         payload["customer_phone"]
         not in fingerprint
     )
+
+
+def test_nested_items_are_not_reordered_during_fingerprinting():
+    base = make_payload(
+        items=[
+            {
+                "product_id": (
+                    "00000000-0000-0000-"
+                    "0000-000000000001"
+                ),
+                "quantity": 1,
+                "selected_options": {
+                    "custom": {
+                        "items": [
+                            {"value": "first"},
+                            {"value": "second"},
+                        ]
+                    }
+                },
+            }
+        ]
+    )
+
+    changed = make_payload(
+        items=[
+            {
+                "product_id": (
+                    "00000000-0000-0000-"
+                    "0000-000000000001"
+                ),
+                "quantity": 1,
+                "selected_options": {
+                    "custom": {
+                        "items": [
+                            {"value": "second"},
+                            {"value": "first"},
+                        ]
+                    }
+                },
+            }
+        ]
+    )
+
+    assert (
+        build_order_request_fingerprint(base)
+        != build_order_request_fingerprint(changed)
+    )

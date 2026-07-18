@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import EmailStr, TypeAdapter, ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -22,6 +23,43 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 PAYMENTS_UNAVAILABLE_DETAIL = (
     "Online payments are temporarily unavailable."
 )
+PAYMENT_EMAIL_REQUIRED_DETAIL = (
+    "Enter a valid email address to continue with online payment."
+)
+PAYMENT_LINK_UNSAFE_DETAIL = (
+    "This payment link cannot be safely reused. Start a new order to continue."
+)
+PAYMENT_LINK_EMAIL_MISMATCH_DETAIL = (
+    "This order already has a payment link for a different email address."
+)
+PAYMENT_SETUP_IN_PROGRESS_DETAIL = (
+    "Payment setup is already in progress. Please try again shortly."
+)
+_PAYMENT_EMAIL_ADAPTER = TypeAdapter(EmailStr)
+
+
+def normalize_payment_email(
+    value: object | None,
+) -> str | None:
+    if value is None:
+        return None
+
+    candidate = str(value).strip()
+
+    if not candidate:
+        return None
+
+    try:
+        validated = _PAYMENT_EMAIL_ADAPTER.validate_python(
+            candidate
+        )
+    except ValidationError as error:
+        raise HTTPException(
+            status_code=422,
+            detail=PAYMENT_EMAIL_REQUIRED_DETAIL,
+        ) from error
+
+    return str(validated).strip().lower()
 
 
 def generate_reference() -> str:
@@ -158,6 +196,31 @@ async def initialize_payment(
 
     await ensure_plan_allows_online_payments(db, store)
 
+    payload_email = normalize_payment_email(
+        payload.customer_email
+    )
+    order_email = normalize_payment_email(
+        order.customer_email
+    )
+
+    if (
+        payload_email
+        and order_email
+        and payload_email != order_email
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=PAYMENT_LINK_EMAIL_MISMATCH_DETAIL,
+        )
+
+    email = order_email or payload_email
+
+    if not email:
+        raise HTTPException(
+            status_code=422,
+            detail=PAYMENT_EMAIL_REQUIRED_DETAIL,
+        )
+
     existing_result = await db.execute(
         select(Transaction).where(
             Transaction.order_id == order.id,
@@ -166,7 +229,33 @@ async def initialize_payment(
     )
     existing_transaction = existing_result.scalar_one_or_none()
 
-    if existing_transaction and existing_transaction.authorization_url:
+    if existing_transaction:
+        if not existing_transaction.authorization_url:
+            raise HTTPException(
+                status_code=409,
+                detail=PAYMENT_SETUP_IN_PROGRESS_DETAIL,
+            )
+
+        transaction_email = normalize_payment_email(
+            existing_transaction.payer_email
+        )
+
+        if not transaction_email:
+            raise HTTPException(
+                status_code=409,
+                detail=PAYMENT_LINK_UNSAFE_DETAIL,
+            )
+
+        if transaction_email != email:
+            raise HTTPException(
+                status_code=409,
+                detail=PAYMENT_LINK_EMAIL_MISMATCH_DETAIL,
+            )
+
+        if order.customer_email != email:
+            order.customer_email = email
+            await db.commit()
+
         return PaymentInitializeResponse(
             authorization_url=existing_transaction.authorization_url,
             access_code=existing_transaction.access_code or "",
@@ -174,7 +263,6 @@ async def initialize_payment(
         )
 
     reference = generate_reference()
-    email = payload.customer_email or order.customer_email or "customer@example.com"
     amount_kobo = int(order.total * 100)
 
     paystack_payload = {
@@ -214,6 +302,7 @@ async def initialize_payment(
         order_id=order.id,
         store_id=order.store_id,
         provider_reference=reference,
+        payer_email=email,
         amount=order.total,
         currency=order.currency,
         status="pending",
@@ -222,6 +311,7 @@ async def initialize_payment(
         raw_response=data,
     )
 
+    order.customer_email = email
     db.add(transaction)
     await db.commit()
 
