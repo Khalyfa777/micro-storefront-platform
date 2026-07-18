@@ -15,7 +15,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -74,6 +74,30 @@ class Order(Base):
         String(64),
         nullable=True,
     )
+    source: Mapped[str] = mapped_column(
+        String(40),
+        default="web_checkout",
+        nullable=False,
+    )
+    fulfillment_method: Mapped[str] = mapped_column(
+        String(40),
+        default="seller_confirmation",
+        nullable=False,
+    )
+    whatsapp_handoff_status: Mapped[str] = mapped_column(
+        String(30),
+        default="not_requested",
+        nullable=False,
+    )
+    whatsapp_handoff_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    handoff_metadata: Mapped[dict] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+    )
     status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
     payment_method: Mapped[str | None] = mapped_column(String(30), nullable=True)
     inventory_deducted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -103,6 +127,21 @@ class OrderItem(Base):
     product_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=False)
 
     product_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    product_type: Mapped[str] = mapped_column(
+        String(50),
+        default="physical",
+        nullable=False,
+    )
+    selected_options: Mapped[dict] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+    )
+    configuration_snapshot: Mapped[list] = mapped_column(
+        JSONB,
+        default=list,
+        nullable=False,
+    )
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     line_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)

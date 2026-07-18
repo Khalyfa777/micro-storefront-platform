@@ -7,13 +7,29 @@ from fastapi import (
     HTTPException,
     UploadFile,
 )
-from sqlalchemy import select, func
+from sqlalchemy import delete, select, func
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_store_owner
 from app.db.session import get_db
-from app.models import Store, Product
+
+from app.models import (
+    Product,
+    ProductOrderField,
+    ProductOrderFieldOption,
+    Store,
+)
+
 from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate
+from app.schemas.product_order_field import (
+    ProductOrderFieldResponse,
+    ProductOrderFieldsReplace,
+)
+from app.services.conversational_ordering import (
+    normalize_fulfillment_configuration,
+    validate_order_field_definitions,
+)
 from app.services.image_upload import (
     delete_managed_image_if_unreferenced,
     get_referenced_image_urls,
@@ -81,6 +97,40 @@ async def ensure_published_store_keeps_active_product(
         )
 
 
+
+async def _replace_product_order_fields_in_transaction(
+    db: AsyncSession,
+    product_id: UUID,
+    definitions: list[dict],
+) -> None:
+    await db.execute(
+        delete(ProductOrderField).where(
+            ProductOrderField.product_id == product_id
+        )
+    )
+    await db.flush()
+
+    for definition in definitions:
+        field_data = dict(definition)
+        options = list(field_data.pop("options", []))
+        order_field = ProductOrderField(
+            product_id=product_id,
+            **field_data,
+        )
+        db.add(order_field)
+        await db.flush()
+
+        for option in options:
+            db.add(
+                ProductOrderFieldOption(
+                    field_id=order_field.id,
+                    **option,
+                )
+            )
+
+    await db.flush()
+
+
 @router.get("/stores/{store_id}/products", response_model=list[ProductResponse])
 async def list_products(
     store: Store = Depends(require_store_owner),
@@ -88,6 +138,11 @@ async def list_products(
 ):
     result = await db.execute(
         select(Product)
+        .options(
+            selectinload(Product.order_fields).selectinload(
+                ProductOrderField.options
+            )
+        )
         .where(Product.store_id == store.id)
         .order_by(Product.created_at.desc())
     )
@@ -135,6 +190,10 @@ async def create_product(
                     detail=get_product_limit_message(store.plan_name, plan_limit),
                 )
 
+    order_field_definitions = validate_order_field_definitions(
+        field.model_dump() for field in payload.order_fields
+    )
+
     product = Product(
         store_id=store.id,
         name=payload.name,
@@ -142,17 +201,32 @@ async def create_product(
         description=payload.description,
         image_url=payload.image_url,
         product_type=payload.product_type,
+        default_fulfillment_method=payload.default_fulfillment_method,
+        allowed_fulfillment_methods=payload.allowed_fulfillment_methods,
         price=payload.price,
         stock_quantity=payload.stock_quantity,
         is_active=payload.is_active,
         is_featured=payload.is_featured,
     )
 
-    db.add(product)
-    await db.commit()
-    await db.refresh(product)
+    try:
+        db.add(product)
+        await db.flush()
+        await _replace_product_order_fields_in_transaction(
+            db,
+            product.id,
+            order_field_definitions,
+        )
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
 
-    return product
+    return await _get_owned_product_with_order_fields(
+        product.id,
+        store,
+        db,
+    )
 
 
 @router.patch("/stores/{store_id}/products/{product_id}", response_model=ProductResponse)
@@ -165,6 +239,21 @@ async def update_product(
     update_data = payload.model_dump(
         exclude_unset=True
     )
+    order_fields_were_supplied = (
+        "order_fields" in update_data
+    )
+    order_fields_payload = update_data.pop(
+        "order_fields",
+        None,
+    )
+    order_field_definitions = None
+
+    if order_fields_were_supplied:
+        order_field_definitions = (
+            validate_order_field_definitions(
+                order_fields_payload or []
+            )
+        )
 
     changes_active_state = (
         "is_active" in update_data
@@ -183,7 +272,10 @@ async def update_product(
         Product.store_id == store.id,
     )
 
-    if changes_active_state:
+    if (
+        changes_active_state
+        or order_fields_were_supplied
+    ):
         product_query = (
             product_query.with_for_update()
         )
@@ -262,16 +354,70 @@ async def update_product(
             )
         )
 
-    for key, value in update_data.items():
-        setattr(product, key, value)
+    fulfillment_keys = {
+        "product_type",
+        "default_fulfillment_method",
+        "allowed_fulfillment_methods",
+    }
+    if fulfillment_keys.intersection(update_data):
+        merged_product_type = update_data.get(
+            "product_type", product.product_type
+        )
+        merged_default = update_data.get(
+            "default_fulfillment_method",
+            product.default_fulfillment_method,
+        )
+        merged_allowed = update_data.get(
+            "allowed_fulfillment_methods",
+            product.allowed_fulfillment_methods,
+        )
+        try:
+            normalized_default, normalized_allowed = (
+                normalize_fulfillment_configuration(
+                    merged_product_type,
+                    merged_default,
+                    merged_allowed,
+                )
+            )
+        except ValueError as error:
+            raise HTTPException(
+                status_code=422,
+                detail=str(error),
+            ) from error
+        update_data["default_fulfillment_method"] = normalized_default
+        update_data["allowed_fulfillment_methods"] = normalized_allowed
 
-    await db.commit()
-    await db.refresh(product)
+    try:
+        for key, value in update_data.items():
+            setattr(product, key, value)
+
+        if (
+            order_fields_were_supplied
+            and order_field_definitions is not None
+        ):
+            await _replace_product_order_fields_in_transaction(
+                db,
+                product.id,
+                order_field_definitions,
+            )
+
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+
+    configured_product = (
+        await _get_owned_product_with_order_fields(
+            product.id,
+            store,
+            db,
+        )
+    )
 
     if (
         previous_image_url
         and previous_image_url
-        != product.image_url
+        != configured_product.image_url
     ):
         await (
             delete_managed_image_if_unreferenced(
@@ -281,7 +427,7 @@ async def update_product(
             )
         )
 
-    return product
+    return configured_product
 
 
 @router.delete("/stores/{store_id}/products/{product_id}")
@@ -330,6 +476,91 @@ async def delete_product(
     }
 
 
+async def _get_owned_product_with_order_fields(
+    product_id: UUID,
+    store: Store,
+    db: AsyncSession,
+    *,
+    lock: bool = False,
+) -> Product:
+    query = (
+        select(Product)
+        .options(
+            selectinload(Product.order_fields).selectinload(
+                ProductOrderField.options
+            )
+        )
+        .where(
+            Product.id == product_id,
+            Product.store_id == store.id,
+        )
+    )
+    if lock:
+        query = query.with_for_update()
+    query = query.execution_options(populate_existing=True)
+    result = await db.execute(query)
+    product = result.scalar_one_or_none()
+    if product is None:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+
+@router.get(
+    "/stores/{store_id}/products/{product_id}/order-fields",
+    response_model=list[ProductOrderFieldResponse],
+)
+async def list_product_order_fields(
+    product_id: UUID,
+    store: Store = Depends(require_store_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    product = await _get_owned_product_with_order_fields(
+        product_id,
+        store,
+        db,
+    )
+    return product.order_fields
+
+
+@router.put(
+    "/stores/{store_id}/products/{product_id}/order-fields",
+    response_model=list[ProductOrderFieldResponse],
+)
+async def replace_product_order_fields(
+    product_id: UUID,
+    payload: ProductOrderFieldsReplace,
+    store: Store = Depends(require_store_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    product = await _get_owned_product_with_order_fields(
+        product_id,
+        store,
+        db,
+        lock=True,
+    )
+    try:
+        definitions = validate_order_field_definitions(
+            field.model_dump() for field in payload.fields
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+    try:
+        await _replace_product_order_fields_in_transaction(
+            db,
+            product.id,
+            definitions,
+        )
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+    configured_product = await _get_owned_product_with_order_fields(
+        product_id,
+        store,
+        db,
+    )
+    return configured_product.order_fields
 
 
 # ============================

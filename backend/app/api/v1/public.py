@@ -2,10 +2,11 @@ from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.db.session import get_db
-from app.models import Store, Product, SubscriptionPlan
+from app.models import Product, ProductOrderField, Store, SubscriptionPlan
 from app.schemas.product import ProductResponse
 from app.schemas.store import StorePublicResponse
 from app.services.subscription import get_store_access_error
@@ -79,13 +80,19 @@ async def public_store(slug: str, db: AsyncSession = Depends(get_db)):
     store.can_receive_online_payments = await get_public_online_payment_flag(db, store)
 
     products_result = await db.execute(
-        select(Product).where(
+        select(Product)
+        .options(
+            selectinload(Product.order_fields).selectinload(
+                ProductOrderField.options
+            )
+        )
+        .where(
             Product.store_id == store.id,
-            Product.is_active == True,
+            Product.is_active.is_(True),
         )
     )
 
-    products = products_result.scalars().all()
+    products = products_result.scalars().unique().all()
 
     return {
         "store": store,

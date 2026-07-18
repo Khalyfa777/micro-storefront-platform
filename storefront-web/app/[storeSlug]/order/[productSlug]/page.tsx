@@ -6,6 +6,63 @@ import {
 const API_URL =
   resolveStorefrontApiBaseUrl();
 
+type ProductType =
+  | "physical"
+  | "digital"
+  | "subscription"
+  | "service"
+  | "food"
+  | "booking"
+  | "custom";
+
+type FulfillmentMethod =
+  | "delivery"
+  | "pickup"
+  | "digital_delivery"
+  | "activation"
+  | "appointment"
+  | "on_site_service"
+  | "remote_service"
+  | "reservation"
+  | "seller_confirmation";
+
+type ProductOrderFieldOption = {
+  id: string;
+  value: string;
+  label: string;
+  price_adjustment: string;
+  is_active: boolean;
+  sort_order: number;
+};
+
+type ProductOrderField = {
+  id: string;
+  product_id: string;
+  key: string;
+  label: string;
+  field_type:
+    | "text"
+    | "textarea"
+    | "select"
+    | "radio"
+    | "checkbox"
+    | "number"
+    | "date"
+    | "time"
+    | "datetime"
+    | "phone"
+    | "email";
+  placeholder?: string | null;
+  help_text?: string | null;
+  is_required: boolean;
+  is_sensitive: boolean;
+  include_in_whatsapp: boolean;
+  is_active: boolean;
+  sort_order: number;
+  validation_rules: Record<string, unknown>;
+  options: ProductOrderFieldOption[];
+};
+
 type Product = {
   id: string;
   name: string;
@@ -14,6 +71,10 @@ type Product = {
   image_url?: string | null;
   price: string;
   stock_quantity?: number | null;
+  product_type: ProductType;
+  default_fulfillment_method: FulfillmentMethod;
+  allowed_fulfillment_methods: FulfillmentMethod[];
+  order_fields: ProductOrderField[];
   is_active: boolean;
   is_featured: boolean;
 };
@@ -39,24 +100,31 @@ type StoreFetchResult = {
   detail: string;
 };
 
-async function getStore(storeSlug: string): Promise<StoreFetchResult> {
-  const res = await fetch(`${API_URL}/public/stores/${storeSlug}`, {
-    cache: "no-store",
-  });
+async function getStore(
+  storeSlug: string,
+): Promise<StoreFetchResult> {
+  const response = await fetch(
+    `${API_URL}/public/stores/${storeSlug}`,
+    {
+      cache: "no-store",
+    },
+  );
 
-  const data = await res.json().catch(() => null);
+  const data = await response.json().catch(() => null);
 
-  if (!res.ok) {
+  if (!response.ok) {
     return {
       data: null,
-      status: res.status,
-      detail: data?.detail || "Store is not available.",
+      status: response.status,
+      detail:
+        data?.detail ||
+        "Store is not available.",
     };
   }
 
   return {
     data,
-    status: res.status,
+    status: response.status,
     detail: "",
   };
 }
@@ -64,10 +132,12 @@ async function getStore(storeSlug: string): Promise<StoreFetchResult> {
 export default async function ProductOrderPage({
   params,
 }: {
-  params: Promise<{ storeSlug: string; productSlug: string }>;
+  params: Promise<{
+    storeSlug: string;
+    productSlug: string;
+  }>;
 }) {
   const { storeSlug, productSlug } = await params;
-
   const result = await getStore(storeSlug);
 
   if (!result.data) {
@@ -77,7 +147,9 @@ export default async function ProductOrderPage({
       <main className="not-found">
         <div className="not-found-card">
           <h1>
-            {isUnavailable ? "Store temporarily unavailable" : "Store not found"}
+            {isUnavailable
+              ? "Store temporarily unavailable"
+              : "Store not found"}
           </h1>
 
           <p>
@@ -95,16 +167,24 @@ export default async function ProductOrderPage({
   }
 
   const store: Store = result.data.store;
-  const products: Product[] = result.data.products || [];
-  const product = products.find((item) => item.slug === productSlug);
+  const products: Product[] =
+    result.data.products || [];
+  const product = products.find(
+    (item) => item.slug === productSlug,
+  );
 
   if (!product) {
     return (
       <main className="not-found">
         <div className="not-found-card">
           <h1>Product not found</h1>
-          <p>This product does not exist or is currently unavailable.</p>
-          <a className="btn btn-dark" href={`/${store.slug}`}>
+          <p>
+            This product does not exist or is currently unavailable.
+          </p>
+          <a
+            className="btn btn-dark"
+            href={`/${store.slug}`}
+          >
             Back to store
           </a>
         </div>
@@ -120,14 +200,22 @@ export default async function ProductOrderPage({
     return (
       <main className="order-page">
         <section className="order-shell">
-          <a className="back-link" href={`/${store.slug}`}>
+          <a
+            className="back-link"
+            href={`/${store.slug}`}
+          >
             Back to store
           </a>
 
           <div className="order-form-card">
             <h2>Sold out</h2>
-            <p>This product is currently out of stock.</p>
-            <a className="submit-order-btn" href={`/${store.slug}`}>
+            <p>
+              This product is currently out of stock.
+            </p>
+            <a
+              className="submit-order-btn"
+              href={`/${store.slug}`}
+            >
               Back to store
             </a>
           </div>
@@ -136,5 +224,7 @@ export default async function ProductOrderPage({
     );
   }
 
-  return <OrderForm store={store} product={product} />;
+  return (
+    <OrderForm store={store} product={product} />
+  );
 }

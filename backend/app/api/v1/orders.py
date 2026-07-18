@@ -1,7 +1,7 @@
 import hmac
 from decimal import Decimal
-from typing import Annotated
-from uuid import uuid4
+from typing import Annotated, Any, Iterable
+from uuid import UUID, uuid4
 
 from fastapi import (
     APIRouter,
@@ -17,7 +17,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_store_owner
 from app.db.session import get_db
-from app.models import Store, Product, Order, OrderItem
+
+from app.models import (
+    Order,
+    OrderItem,
+    Product,
+    ProductOrderField,
+    Store,
+)
 from app.schemas.order import (
     OrderResponse,
     OrderStatusUpdate,
@@ -39,6 +46,13 @@ from app.services.order_idempotency import (
     acquire_order_idempotency_lock,
     build_order_request_fingerprint,
     normalize_order_idempotency_key,
+)
+
+from app.services.conversational_ordering import (
+    build_whatsapp_order_summary,
+    resolve_order_fulfillment_method,
+    resolve_order_item_configuration,
+    resolve_order_location,
 )
 
 
@@ -81,6 +95,93 @@ def generate_order_number() -> str:
     return f"ORD-{uuid4().hex[:10].upper()}"
 
 
+def _aggregate_product_quantities(
+    items: Iterable[Any],
+) -> dict[UUID, int]:
+    quantities: dict[UUID, int] = {}
+
+    for item in items:
+        product_id = item.product_id
+        quantities[product_id] = (
+            quantities.get(product_id, 0)
+            + int(item.quantity)
+        )
+
+    return quantities
+
+
+def _first_item_name_by_product(
+    items: Iterable[Any],
+) -> dict[UUID, str]:
+    names: dict[UUID, str] = {}
+
+    for item in items:
+        product_id = item.product_id
+
+        if product_id not in names:
+            names[product_id] = str(
+                getattr(
+                    item,
+                    "product_name",
+                    product_id,
+                )
+            )
+
+    return names
+
+
+async def _lock_order_products(
+    db: AsyncSession,
+    *,
+    store_id: UUID,
+    product_ids: Iterable[UUID],
+    require_active: bool,
+    load_configuration: bool,
+) -> dict[UUID, Product]:
+    unique_product_ids = sorted(
+        set(product_ids),
+        key=str,
+    )
+
+    if not unique_product_ids:
+        return {}
+
+    query = (
+        select(Product)
+        .where(
+            Product.store_id == store_id,
+            Product.id.in_(unique_product_ids),
+        )
+        .order_by(Product.id)
+        .with_for_update()
+    )
+
+    if require_active:
+        query = query.where(
+            Product.is_active.is_(True)
+        )
+
+    if load_configuration:
+        query = query.options(
+            selectinload(
+                Product.order_fields
+            ).selectinload(
+                ProductOrderField.options
+            )
+        )
+
+    result = await db.execute(query)
+
+    return {
+        product.id: product
+        for product in (
+            result.scalars()
+            .unique()
+            .all()
+        )
+    }
+
+
 @router.post(
     "/public/orders",
     response_model=OrderResponse,
@@ -94,43 +195,26 @@ async def create_public_order(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        normalized_idempotency_key = (
-            normalize_order_idempotency_key(
-                idempotency_key
-            )
+        normalized_idempotency_key = normalize_order_idempotency_key(
+            idempotency_key
         )
     except ValueError as error:
-        raise HTTPException(
-            status_code=400,
-            detail=str(error),
-        ) from error
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
-    request_fingerprint = (
-        build_order_request_fingerprint(
-            payload.model_dump(
-                mode="json"
-            )
-        )
+    request_fingerprint = build_order_request_fingerprint(
+        payload.model_dump(mode="json")
     )
 
     store_result = await db.execute(
         select(Store)
-        .where(
-            Store.slug == payload.store_slug
-        )
+        .where(Store.slug == payload.store_slug)
         .with_for_update(read=True)
     )
-
     store = store_result.scalar_one_or_none()
-
     if not store:
-        raise HTTPException(
-            status_code=404,
-            detail="Store not found",
-        )
+        raise HTTPException(status_code=404, detail="Store not found")
+    store_name = store.name
 
-    # Serialize requests only when the same
-    # store and idempotency key are reused.
     await acquire_order_idempotency_lock(
         db,
         store.id,
@@ -139,26 +223,15 @@ async def create_public_order(
 
     existing_result = await db.execute(
         select(Order)
-        .options(
-            selectinload(Order.items)
-        )
+        .options(selectinload(Order.items))
         .where(
             Order.store_id == store.id,
-            Order.idempotency_key
-            == normalized_idempotency_key,
+            Order.idempotency_key == normalized_idempotency_key,
         )
     )
-
-    existing_order = (
-        existing_result.scalar_one_or_none()
-    )
-
+    existing_order = existing_result.scalar_one_or_none()
     if existing_order is not None:
-        existing_fingerprint = (
-            existing_order.request_fingerprint
-            or ""
-        )
-
+        existing_fingerprint = existing_order.request_fingerprint or ""
         if not hmac.compare_digest(
             existing_fingerprint,
             request_fingerprint,
@@ -166,150 +239,193 @@ async def create_public_order(
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    "This Idempotency-Key was "
-                    "already used with different "
-                    "order details."
+                    "This Idempotency-Key was already used with "
+                    "different order details."
                 ),
             )
-
+        if existing_order.whatsapp_handoff_status == "ready":
+            setattr(
+                existing_order,
+                "whatsapp_message",
+                build_whatsapp_order_summary(existing_order, store_name),
+            )
         return existing_order
 
     if not is_store_published(store):
-        # New orders remain concealed when the
-        # storefront is not published.
-        raise HTTPException(
-            status_code=404,
-            detail="Store not found",
-        )
+        raise HTTPException(status_code=404, detail="Store not found")
 
-    access_error = get_store_access_error(
-        store
-    )
-
+    access_error = get_store_access_error(store)
     if access_error:
-        raise HTTPException(
-            status_code=403,
-            detail=access_error,
-        )
+        raise HTTPException(status_code=403, detail=access_error)
 
     product_ids = [
         item.product_id
         for item in payload.items
     ]
+    products = await _lock_order_products(
+        db,
+        store_id=store.id,
+        product_ids=product_ids,
+        require_active=True,
+        load_configuration=True,
+    )
+    missing_product_ids = [
+        product_id
+        for product_id in dict.fromkeys(
+            product_ids
+        )
+        if product_id not in products
+    ]
 
-    products_result = await db.execute(
-        select(Product).where(
-            Product.store_id == store.id,
-            Product.id.in_(product_ids),
-            Product.is_active == True,
+    if missing_product_ids:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Product not available: "
+                f"{missing_product_ids[0]}"
+            ),
+        )
+
+    requested_quantities = (
+        _aggregate_product_quantities(
+            payload.items
         )
     )
 
-    products = {
-        product.id: product
-        for product
-        in products_result.scalars().all()
-    }
-
-    prepared_items = []
-    subtotal = Decimal("0.00")
-
-    for item in payload.items:
-        product = products.get(
-            item.product_id
-        )
-
-        if not product:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Product not available: "
-                    f"{item.product_id}"
-                ),
-            )
+    for product_id, requested_quantity in (
+        requested_quantities.items()
+    ):
+        product = products[product_id]
 
         if (
             product.stock_quantity is not None
-            and item.quantity
+            and requested_quantity
             > product.stock_quantity
         ):
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    f"Only "
-                    f"{product.stock_quantity} "
-                    f"left in stock for "
-                    f"{product.name}"
+                    f"Only {product.stock_quantity} "
+                    f"left in stock for {product.name}"
                 ),
             )
 
-        line_total = (
-            product.price * item.quantity
+    ordered_unique_product_ids = list(
+        dict.fromkeys(product_ids)
+    )
+
+    try:
+        fulfillment_method = resolve_order_fulfillment_method(
+            [
+                products[product_id]
+                for product_id
+                in ordered_unique_product_ids
+            ],
+            payload.fulfillment_method,
         )
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
+    try:
+        delivery_address = resolve_order_location(
+            fulfillment_method,
+            payload.delivery_address,
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=422,
+            detail=str(error),
+        ) from error
+
+    prepared_items = []
+    subtotal = Decimal("0.00")
+    for item in payload.items:
+        product = products.get(item.product_id)
+        if not product:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Product not available: {item.product_id}",
+            )
+        try:
+            configuration = resolve_order_item_configuration(
+                product,
+                item.selected_options,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+        line_total = configuration.unit_price * item.quantity
         subtotal += line_total
-
         prepared_items.append(
             {
                 "product": product,
                 "quantity": item.quantity,
+                "unit_price": configuration.unit_price,
                 "line_total": line_total,
+                "selected_options": configuration.selected_options,
+                "configuration_snapshot": configuration.configuration_snapshot,
             }
         )
 
+    wants_whatsapp = payload.handoff_channel == "whatsapp"
+    whatsapp_ready = bool(wants_whatsapp and store.whatsapp_number)
     order = Order(
         store_id=store.id,
         order_number=generate_order_number(),
-        idempotency_key=(
-            normalized_idempotency_key
+        idempotency_key=normalized_idempotency_key,
+        request_fingerprint=request_fingerprint,
+        source="whatsapp_checkout" if wants_whatsapp else "web_checkout",
+        fulfillment_method=fulfillment_method,
+        whatsapp_handoff_status=(
+            "ready" if whatsapp_ready else "unavailable" if wants_whatsapp else "not_requested"
         ),
-        request_fingerprint=(
-            request_fingerprint
+        handoff_metadata=(
+            {"channel": "whatsapp"} if wants_whatsapp else {}
         ),
         status="pending",
         customer_name=payload.customer_name,
         customer_phone=payload.customer_phone,
         customer_email=payload.customer_email,
-        delivery_address=(
-            payload.delivery_address
-        ),
+        delivery_address=delivery_address,
         customer_note=payload.customer_note,
         subtotal=subtotal,
         delivery_fee=Decimal("0.00"),
         total=subtotal,
         currency="GHS",
     )
-
     db.add(order)
     await db.flush()
 
     for prepared in prepared_items:
         product = prepared["product"]
-        quantity = prepared["quantity"]
-        line_total = prepared["line_total"]
-
         db.add(
             OrderItem(
                 order_id=order.id,
                 product_id=product.id,
                 product_name=product.name,
-                unit_price=product.price,
-                quantity=quantity,
-                line_total=line_total,
+                product_type=product.product_type,
+                unit_price=prepared["unit_price"],
+                quantity=prepared["quantity"],
+                line_total=prepared["line_total"],
+                selected_options=prepared["selected_options"],
+                configuration_snapshot=prepared["configuration_snapshot"],
             )
         )
 
     await db.commit()
-
     result = await db.execute(
         select(Order)
-        .options(
-            selectinload(Order.items)
-        )
+        .options(selectinload(Order.items))
         .where(Order.id == order.id)
     )
-
-    return result.scalar_one()
+    created_order = result.scalar_one()
+    if whatsapp_ready:
+        setattr(
+            created_order,
+            "whatsapp_message",
+            build_whatsapp_order_summary(created_order, store_name),
+        )
+    return created_order
 
 
 
@@ -450,72 +566,129 @@ async def update_order_status(
 
     new_status = payload.status.lower()
     previous_status = order.status
-    ensure_order_status_transition_allowed(previous_status, new_status)
-    should_deduct_inventory = new_status == "paid" and not order.inventory_deducted
+    ensure_order_status_transition_allowed(
+        previous_status,
+        new_status,
+    )
+    should_deduct_inventory = (
+        new_status == "paid"
+        and not order.inventory_deducted
+    )
     should_restore_inventory = (
         new_status == "cancelled"
         and order.inventory_deducted
-        and previous_status in {"paid", "processing", "completed"}
+        and previous_status
+        in {"paid", "processing", "completed"}
     )
 
-    order.status = new_status
+    inventory_quantities = (
+        _aggregate_product_quantities(
+            order.items
+        )
+    )
+    inventory_products: dict[
+        UUID,
+        Product,
+    ] = {}
 
-    if new_status == "paid" and not order.payment_method:
-        order.payment_method = "manual"
+    if (
+        should_deduct_inventory
+        or should_restore_inventory
+    ):
+        inventory_products = (
+            await _lock_order_products(
+                db,
+                store_id=store.id,
+                product_ids=(
+                    inventory_quantities.keys()
+                ),
+                require_active=False,
+                load_configuration=False,
+            )
+        )
+        missing_product_ids = [
+            product_id
+            for product_id
+            in inventory_quantities
+            if product_id
+            not in inventory_products
+        ]
 
-    if should_deduct_inventory:
-        for item in order.items:
-            product_result = await db.execute(
-                select(Product)
-                .where(
-                    Product.id == item.product_id,
-                    Product.store_id == store.id,
+        if missing_product_ids:
+            item_names = (
+                _first_item_name_by_product(
+                    order.items
                 )
-                .with_for_update()
+            )
+            missing_id = missing_product_ids[0]
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Product not found for order "
+                    "item: "
+                    f"{item_names.get(missing_id, missing_id)}"
+                ),
             )
 
-            product = product_result.scalar_one_or_none()
+    if should_deduct_inventory:
+        for product_id, requested_quantity in (
+            inventory_quantities.items()
+        ):
+            product = inventory_products[
+                product_id
+            ]
 
-            if not product:
+            if (
+                product.stock_quantity is not None
+                and product.stock_quantity
+                < requested_quantity
+            ):
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Product not found for order item: {item.product_name}",
+                    detail=(
+                        f"Not enough stock for "
+                        f"{product.name}. Available: "
+                        f"{product.stock_quantity}"
+                    ),
                 )
 
-            if product.stock_quantity is not None:
-                if product.stock_quantity < item.quantity:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Not enough stock for {product.name}. Available: {product.stock_quantity}",
-                    )
+        for product_id, requested_quantity in (
+            inventory_quantities.items()
+        ):
+            product = inventory_products[
+                product_id
+            ]
 
-                product.stock_quantity -= item.quantity
+            if product.stock_quantity is not None:
+                product.stock_quantity -= (
+                    requested_quantity
+                )
 
         order.inventory_deducted = True
 
     if should_restore_inventory:
-        for item in order.items:
-            product_result = await db.execute(
-                select(Product)
-                .where(
-                    Product.id == item.product_id,
-                    Product.store_id == store.id,
-                )
-                .with_for_update()
-            )
-
-            product = product_result.scalar_one_or_none()
-
-            if not product:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Product not found for order item: {item.product_name}",
-                )
+        for product_id, restored_quantity in (
+            inventory_quantities.items()
+        ):
+            product = inventory_products[
+                product_id
+            ]
 
             if product.stock_quantity is not None:
-                product.stock_quantity += item.quantity
+                product.stock_quantity += (
+                    restored_quantity
+                )
 
         order.inventory_deducted = False
+
+    order.status = new_status
+
+    if (
+        new_status == "paid"
+        and not order.payment_method
+    ):
+        order.payment_method = "manual"
+
     await db.commit()
     await db.refresh(order)
 

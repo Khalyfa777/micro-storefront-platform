@@ -19,6 +19,7 @@ class Transaction(Base):
 
     provider: Mapped[str] = mapped_column(String(30), default="paystack", nullable=False)
     provider_reference: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    payer_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="GHS", nullable=False)
