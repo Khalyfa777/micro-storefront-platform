@@ -78,6 +78,13 @@ type Product = {
   is_featured: boolean;
 };
 
+type ProductFieldValidationTarget =
+  | "name"
+  | "slug"
+  | "fulfillment"
+  | "price"
+  | "stock";
+
 type ProductForm = {
   name: string;
   slug: string;
@@ -653,7 +660,7 @@ type ProductsPageProps = {
   editingProductId: string | null;
   isProductFormOpen: boolean;
   setIsProductFormOpen: Dispatch<SetStateAction<boolean>>;
-  saveProduct: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
+  saveProduct: () => void | Promise<void>;
   makeSlug: (value: string) => string;
   uploadProductImage: (file: File) => void | Promise<void>;
   isProductLimitReachedForCreate: () => boolean;
@@ -666,7 +673,24 @@ type ProductsPageProps = {
   deleteProduct: (product: Product) => void | Promise<void>;
 };
 
-export function ProductsPage({
+export function ProductsPage(
+  props: ProductsPageProps,
+) {
+  const formSessionKey = props.editingProductId
+    ? `edit:${props.editingProductId}`
+    : props.isProductFormOpen
+      ? "new"
+      : "closed";
+
+  return (
+    <ProductsPageSession
+      key={formSessionKey}
+      {...props}
+    />
+  );
+}
+
+function ProductsPageSession({
   products,
   productForm,
   setProductForm,
@@ -695,9 +719,24 @@ export function ProductsPage({
     useState<number | null>(null);
   const [stepMessage, setStepMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [
+    questionValidationTarget,
+    setQuestionValidationTarget,
+  ] = useState<{
+    fieldIndex: number;
+    optionIndex: number | null;
+    kind: "question" | "choice" | "choices";
+  } | null>(null);
+  const [
+    fieldValidationTarget,
+    setFieldValidationTarget,
+  ] = useState<ProductFieldValidationTarget | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
-  const initialFormSnapshotRef = useRef("");
-  const formSessionRef = useRef("");
+  const initialFormSnapshotRef = useRef(
+    isProductFormOpen || editingProductId
+      ? serializeProductForm(productForm)
+      : "",
+  );
 
   const formIsOpen =
     isProductFormOpen || Boolean(editingProductId);
@@ -756,73 +795,6 @@ export function ProductsPage({
   );
 
   useEffect(() => {
-    const sessionKey = editingProductId
-      ? `edit:${editingProductId}`
-      : isProductFormOpen
-        ? "new"
-        : "";
-
-    if (!sessionKey) {
-      formSessionRef.current = "";
-      initialFormSnapshotRef.current = "";
-      setActiveStep(1);
-      setExpandedFieldIndex(null);
-      setStepMessage("");
-      setIsSubmitting(false);
-      return;
-    }
-
-    if (formSessionRef.current === sessionKey) {
-      return;
-    }
-
-    formSessionRef.current = sessionKey;
-    setActiveStep(1);
-    setExpandedFieldIndex(null);
-    setStepMessage("");
-    setIsSubmitting(false);
-
-    if (editingProductId) {
-      initialFormSnapshotRef.current =
-        serializeProductForm(productForm);
-      return;
-    }
-
-    setProductForm((previous) => {
-      const defaults =
-        DEFAULT_FULFILLMENT_BY_PRODUCT_TYPE[
-          previous.product_type
-        ];
-
-      const alreadyUsesDefaults =
-        previous.default_fulfillment_method === defaults[0] &&
-        previous.allowed_fulfillment_methods.length ===
-          defaults.length &&
-        defaults.every((method) =>
-          previous.allowed_fulfillment_methods.includes(method),
-        );
-
-      const nextForm = alreadyUsesDefaults
-        ? previous
-        : {
-            ...previous,
-            default_fulfillment_method: defaults[0],
-            allowed_fulfillment_methods: [...defaults],
-          };
-
-      initialFormSnapshotRef.current =
-        serializeProductForm(nextForm);
-
-      return nextForm;
-    });
-  }, [
-    editingProductId,
-    isProductFormOpen,
-    productForm,
-    setProductForm,
-  ]);
-
-  useEffect(() => {
     if (
       !formIsOpen ||
       !initialFormSnapshotRef.current ||
@@ -872,7 +844,6 @@ export function ProductsPage({
     }
 
     initialFormSnapshotRef.current = "";
-    formSessionRef.current = "";
     cancelProductEdit();
   }
 
@@ -915,34 +886,39 @@ export function ProductsPage({
     method: FulfillmentMethod,
     checked: boolean,
   ) {
+    clearFieldValidationTarget("fulfillment");
+
     setProductForm((previous) => {
       const selected =
         previous.allowed_fulfillment_methods;
 
-      let nextSelected = checked
+      const nextSelected = checked
         ? Array.from(new Set([...selected, method]))
         : selected.filter(
             (candidate) => candidate !== method,
           );
 
-      if (nextSelected.length === 0) {
-        nextSelected = [method];
-      }
+      const orderedSelected =
+        ALL_FULFILLMENT_METHODS.filter(
+          (candidate) =>
+            nextSelected.includes(candidate),
+        );
 
-      nextSelected = ALL_FULFILLMENT_METHODS.filter(
-        (candidate) => nextSelected.includes(candidate),
-      );
-
-      const nextDefault = nextSelected.includes(
-        previous.default_fulfillment_method,
-      )
-        ? previous.default_fulfillment_method
-        : nextSelected[0];
+      const nextDefault =
+        orderedSelected.length === 0
+          ? previous.default_fulfillment_method
+          : orderedSelected.includes(
+                previous.default_fulfillment_method,
+              )
+            ? previous.default_fulfillment_method
+            : orderedSelected[0];
 
       return {
         ...previous,
-        allowed_fulfillment_methods: nextSelected,
-        default_fulfillment_method: nextDefault,
+        allowed_fulfillment_methods:
+          orderedSelected,
+        default_fulfillment_method:
+          nextDefault,
       };
     });
   }
@@ -1185,71 +1161,237 @@ export function ProductsPage({
     }));
   }
 
+  function clearFieldValidationTarget(
+    target: ProductFieldValidationTarget,
+  ) {
+    if (fieldValidationTarget !== target) {
+      return;
+    }
+
+    setFieldValidationTarget(null);
+    setStepMessage("");
+  }
+
+  function revealFieldValidationTarget(
+    target: ProductFieldValidationTarget,
+    message: string,
+  ) {
+    setQuestionValidationTarget(null);
+    setFieldValidationTarget(target);
+    setStepMessage(message);
+
+    const targetIds: Record<
+      ProductFieldValidationTarget,
+      string
+    > = {
+      name: "product-name",
+      slug: "product-slug",
+      fulfillment: "product-fulfillment-options",
+      price: "product-price",
+      stock: "product-stock",
+    };
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const targetElement = document.getElementById(
+          targetIds[target],
+        );
+
+        targetElement?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+
+        if (targetElement instanceof HTMLElement) {
+          targetElement.focus({
+            preventScroll: true,
+          });
+        }
+      });
+    });
+  }
+
+  function clearQuestionValidationTarget(
+    fieldIndex: number,
+    optionIndex: number | null,
+    kind: "question" | "choice" | "choices",
+  ) {
+    const isCurrentTarget =
+      questionValidationTarget?.fieldIndex === fieldIndex &&
+      questionValidationTarget.optionIndex === optionIndex &&
+      questionValidationTarget.kind === kind;
+
+    if (!isCurrentTarget) {
+      return;
+    }
+
+    setQuestionValidationTarget(null);
+    setStepMessage("");
+  }
+
+  function revealQuestionValidationTarget(
+    fieldIndex: number,
+    optionIndex: number | null,
+    kind: "question" | "choice" | "choices",
+    message: string,
+  ) {
+    setFieldValidationTarget(null);
+    setExpandedFieldIndex(fieldIndex);
+    setQuestionValidationTarget({
+      fieldIndex,
+      optionIndex,
+      kind,
+    });
+    setStepMessage(message);
+
+    const targetId =
+      kind === "question"
+        ? `question-label-${fieldIndex}`
+        : kind === "choice"
+          ? `question-choice-${fieldIndex}-${optionIndex}`
+          : `question-add-choice-${fieldIndex}`;
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const target = document.getElementById(targetId);
+
+        target?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+
+        if (target instanceof HTMLElement) {
+          target.focus({
+            preventScroll: true,
+          });
+        }
+      });
+    });
+  }
+
   function validateStep(step: number) {
     if (step === 1) {
-      if (
-        !productForm.name.trim() ||
-        !productForm.slug.trim()
-      ) {
-        setStepMessage(
-          "Add a product name and product link to continue.",
+      if (!productForm.name.trim()) {
+        revealFieldValidationTarget(
+          "name",
+          "Enter a product name to continue.",
+        );
+        return false;
+      }
+
+      if (!productForm.slug.trim()) {
+        revealFieldValidationTarget(
+          "slug",
+          "Enter a product link to continue.",
         );
         return false;
       }
     }
 
     if (step === 2) {
-      if (
-        productForm.allowed_fulfillment_methods.length ===
-        0
-      ) {
-        setStepMessage(
+      if (productForm.allowed_fulfillment_methods.length === 0) {
+        revealFieldValidationTarget(
+          "fulfillment",
           "Choose at least one way customers can receive this.",
+        );
+        return false;
+      }
+
+      if (
+        !productForm.allowed_fulfillment_methods.includes(
+          productForm.default_fulfillment_method,
+        )
+      ) {
+        revealFieldValidationTarget(
+          "fulfillment",
+          "Choose the default way customers will receive this.",
         );
         return false;
       }
     }
 
     if (step === 3) {
-      const invalidFieldIndex =
-        productForm.order_fields.findIndex(
-          (field) =>
-            !field.label.trim() ||
-            (
-              isChoiceField(field.field_type) &&
-              (
-                field.options.length === 0 ||
-                field.options.some(
-                  (option) => !option.label.trim(),
-                )
-              )
-            ),
+      for (
+        let fieldIndex = 0;
+        fieldIndex < productForm.order_fields.length;
+        fieldIndex += 1
+      ) {
+        const field = productForm.order_fields[fieldIndex];
+        const questionNumber = fieldIndex + 1;
+
+        if (!field.label.trim()) {
+          revealQuestionValidationTarget(
+            fieldIndex,
+            null,
+            "question",
+            `Question ${questionNumber} needs a question title.`,
+          );
+          return false;
+        }
+
+        if (!isChoiceField(field.field_type)) {
+          continue;
+        }
+
+        if (field.options.length === 0) {
+          revealQuestionValidationTarget(
+            fieldIndex,
+            null,
+            "choices",
+            `Question ${questionNumber} needs at least one choice.`,
+          );
+          return false;
+        }
+
+        const invalidOptionIndex = field.options.findIndex(
+          (option) => !option.label.trim(),
         );
 
-      if (invalidFieldIndex >= 0) {
-        setExpandedFieldIndex(invalidFieldIndex);
-        setStepMessage(
-          "Finish the highlighted customer question to continue.",
-        );
-        return false;
+        if (invalidOptionIndex >= 0) {
+          revealQuestionValidationTarget(
+            fieldIndex,
+            invalidOptionIndex,
+            "choice",
+            `Question ${questionNumber} has an empty choice. Enter a choice name.`,
+          );
+          return false;
+        }
       }
     }
 
     if (step === 4) {
-      const price = Number(productForm.price);
+      const normalizedPrice = productForm.price.trim();
+      const parsedPrice = Number(normalizedPrice);
 
       if (
-        !productForm.price.trim() ||
-        !Number.isFinite(price) ||
-        price <= 0
+        !normalizedPrice ||
+        !Number.isFinite(parsedPrice) ||
+        parsedPrice <= 0
       ) {
-        setStepMessage(
-          "Enter a valid product price to continue.",
+        revealFieldValidationTarget(
+          "price",
+          "Enter a valid product price.",
         );
         return false;
       }
+
+      const normalizedStock = productForm.stock_quantity.trim();
+
+      if (normalizedStock) {
+        const parsedStock = Number(normalizedStock);
+
+        if (!Number.isInteger(parsedStock) || parsedStock < 0) {
+          revealFieldValidationTarget(
+            "stock",
+            "Enter a whole stock number of 0 or more, or leave it blank.",
+          );
+          return false;
+        }
+      }
     }
 
+    setFieldValidationTarget(null);
+    setQuestionValidationTarget(null);
     setStepMessage("");
     return true;
   }
@@ -1265,20 +1407,19 @@ export function ProductsPage({
     setActiveStep(
       Math.max(1, Math.min(4, nextStep)),
     );
+    setFieldValidationTarget(null);
+    setQuestionValidationTarget(null);
     setStepMessage("");
     scrollFormIntoView();
   }
 
-  async function handleFormSubmit(
+  function handleFormSubmit(
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
+  }
 
-    if (activeStep < 4) {
-      goToStep(activeStep + 1);
-      return;
-    }
-
+  async function handleSaveClick() {
     if (!validateStep(4) || isSubmitting) {
       return;
     }
@@ -1286,7 +1427,7 @@ export function ProductsPage({
     setIsSubmitting(true);
 
     try {
-      await saveProduct(event);
+      await saveProduct();
     } finally {
       setIsSubmitting(false);
     }
@@ -1451,7 +1592,19 @@ export function ProductsPage({
                 <label>
                   Product name
                   <input
+                    id="product-name"
                     value={productForm.name}
+                    aria-invalid={fieldValidationTarget === "name"}
+                    aria-describedby={
+                      fieldValidationTarget === "name"
+                        ? "product-name-error"
+                        : undefined
+                    }
+                    onInput={(event) => {
+                      if (event.currentTarget.value.trim()) {
+                        clearFieldValidationTarget("name");
+                      }
+                    }}
                     onChange={(event) => {
                       const name = event.target.value;
 
@@ -1466,14 +1619,44 @@ export function ProductsPage({
                     placeholder="e.g. Premium Canvas Tote"
                     required
                   />
+                  {fieldValidationTarget === "name" && (
+                    <small
+                      className="product-field-error"
+                      id="product-name-error"
+                    >
+                      Enter a product name.
+                    </small>
+                  )}
                 </label>
 
                 <label>
                   Product link
-                  <div className="product-slug-input single-border-input">
+                  <div
+                    className={[
+                      "product-slug-input",
+                      "single-border-input",
+                      fieldValidationTarget === "slug"
+                        ? "has-validation-error"
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
                     <span aria-hidden="true">/</span>
                     <input
+                      id="product-slug"
                       value={productForm.slug}
+                      aria-invalid={fieldValidationTarget === "slug"}
+                      aria-describedby={
+                        fieldValidationTarget === "slug"
+                          ? "product-slug-error"
+                          : undefined
+                      }
+                      onInput={(event) => {
+                        if (event.currentTarget.value.trim()) {
+                          clearFieldValidationTarget("slug");
+                        }
+                      }}
                       onChange={(event) =>
                         setProductForm((previous) => ({
                           ...previous,
@@ -1486,6 +1669,14 @@ export function ProductsPage({
                       required
                     />
                   </div>
+                  {fieldValidationTarget === "slug" && (
+                    <small
+                      className="product-field-error"
+                      id="product-slug-error"
+                    >
+                      Enter a product link.
+                    </small>
+                  )}
                 </label>
               </div>
 
@@ -1625,7 +1816,29 @@ export function ProductsPage({
                   </p>
                 </div>
 
-                <div className="fulfillment-choice-grid compact-fulfillment-grid">
+                <div
+                  id="product-fulfillment-options"
+                  className={[
+                    "fulfillment-grid",
+                    "compact-fulfillment-grid",
+                    fieldValidationTarget === "fulfillment"
+                      ? "has-validation-error"
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  role="group"
+                  aria-invalid={fieldValidationTarget === "fulfillment"}
+                  aria-describedby={
+                    fieldValidationTarget === "fulfillment"
+                      ? "product-fulfillment-error"
+                      : undefined
+                  }
+                  tabIndex={-1}
+                  onClick={() => {
+                    clearFieldValidationTarget("fulfillment");
+                  }}
+                >
                   {recommendedFulfillmentMethods.map(
                     (method) => {
                       const checked =
@@ -1660,6 +1873,14 @@ export function ProductsPage({
                     },
                   )}
                 </div>
+                {fieldValidationTarget === "fulfillment" && (
+                  <small
+                    className="product-field-error"
+                    id="product-fulfillment-error"
+                  >
+                    Choose at least one way customers can receive this.
+                  </small>
+                )}
 
                 <details className="fulfillment-more-options">
                   <summary>
@@ -1711,8 +1932,15 @@ export function ProductsPage({
                   Selected by default
                   <select
                     value={
-                      productForm
-                        .default_fulfillment_method
+                      productForm.allowed_fulfillment_methods
+                        .length === 0
+                        ? ""
+                        : productForm
+                            .default_fulfillment_method
+                    }
+                    disabled={
+                      productForm.allowed_fulfillment_methods
+                        .length === 0
                     }
                     onChange={(event) =>
                       setProductForm((previous) => ({
@@ -1723,6 +1951,12 @@ export function ProductsPage({
                       }))
                     }
                   >
+                    {productForm.allowed_fulfillment_methods
+                      .length === 0 && (
+                        <option value="">
+                          Choose an option first
+                        </option>
+                      )}
                     {productForm
                       .allowed_fulfillment_methods
                       .map((method) => (
@@ -1871,6 +2105,7 @@ export function ProductsPage({
 
                       return (
                         <article
+                          id={`question-card-${fieldIndex}`}
                           className={
                             isExpanded
                               ? "order-field-builder-card expanded"
@@ -1985,7 +2220,33 @@ export function ProductsPage({
                                 <label>
                                   What should we ask?
                                   <input
+                                    id={`question-label-${fieldIndex}`}
                                     value={field.label}
+                                    aria-invalid={
+                                      questionValidationTarget
+                                        ?.fieldIndex === fieldIndex &&
+                                      questionValidationTarget.kind ===
+                                        "question"
+                                    }
+                                    aria-describedby={
+                                      questionValidationTarget
+                                        ?.fieldIndex === fieldIndex &&
+                                      questionValidationTarget.kind ===
+                                        "question"
+                                        ? `question-label-error-${fieldIndex}`
+                                        : undefined
+                                    }
+                                    onInput={(event) => {
+                                      if (
+                                        event.currentTarget.value.trim()
+                                      ) {
+                                        clearQuestionValidationTarget(
+                                          fieldIndex,
+                                          null,
+                                          "question",
+                                        );
+                                      }
+                                    }}
                                     onChange={(event) => {
                                       const nextLabel =
                                         event.target.value;
@@ -2034,6 +2295,17 @@ export function ProductsPage({
                                     placeholder="e.g. Shoe size"
                                     required
                                   />
+                                  {questionValidationTarget
+                                    ?.fieldIndex === fieldIndex &&
+                                    questionValidationTarget.kind ===
+                                      "question" && (
+                                      <small
+                                        className="question-field-error"
+                                        id={`question-label-error-${fieldIndex}`}
+                                      >
+                                        Enter a clear customer question.
+                                      </small>
+                                    )}
                                 </label>
 
                                 <label>
@@ -2120,16 +2392,52 @@ export function ProductsPage({
                                     </div>
 
                                     <button
+                                      id={`question-add-choice-${fieldIndex}`}
                                       type="button"
-                                      onClick={() =>
+                                      className={
+                                        questionValidationTarget
+                                          ?.fieldIndex ===
+                                          fieldIndex &&
+                                        questionValidationTarget.kind ===
+                                          "choices"
+                                          ? "has-validation-error"
+                                          : undefined
+                                      }
+                                      aria-describedby={
+                                        questionValidationTarget
+                                          ?.fieldIndex ===
+                                          fieldIndex &&
+                                        questionValidationTarget.kind ===
+                                          "choices"
+                                          ? `question-choices-error-${fieldIndex}`
+                                          : undefined
+                                      }
+                                      onClick={() => {
+                                        clearQuestionValidationTarget(
+                                          fieldIndex,
+                                          null,
+                                          "choices",
+                                        );
                                         addFieldOption(
                                           fieldIndex,
-                                        )
-                                      }
+                                        );
+                                      }}
                                     >
                                       + Add choice
                                     </button>
                                   </div>
+
+                                  {questionValidationTarget
+                                    ?.fieldIndex === fieldIndex &&
+                                    questionValidationTarget.kind ===
+                                      "choices" && (
+                                      <p
+                                        className="question-field-error"
+                                        id={`question-choices-error-${fieldIndex}`}
+                                      >
+                                        Add at least one choice.
+                                      </p>
+                                    )}
 
                                   <div className="order-option-list">
                                     {field.options.map(
@@ -2144,9 +2452,46 @@ export function ProductsPage({
                                           <label>
                                             Choice name
                                             <input
+                                              id={`question-choice-${fieldIndex}-${optionIndex}`}
                                               value={
                                                 option.label
                                               }
+                                              aria-invalid={
+                                                questionValidationTarget
+                                                  ?.fieldIndex ===
+                                                  fieldIndex &&
+                                                questionValidationTarget
+                                                  .kind ===
+                                                  "choice" &&
+                                                questionValidationTarget
+                                                  .optionIndex ===
+                                                  optionIndex
+                                              }
+                                              aria-describedby={
+                                                questionValidationTarget
+                                                  ?.fieldIndex ===
+                                                  fieldIndex &&
+                                                questionValidationTarget
+                                                  .kind ===
+                                                  "choice" &&
+                                                questionValidationTarget
+                                                  .optionIndex ===
+                                                  optionIndex
+                                                  ? `question-choice-error-${fieldIndex}-${optionIndex}`
+                                                  : undefined
+                                              }
+                                              onInput={(event) => {
+                                                if (
+                                                  event.currentTarget
+                                                    .value.trim()
+                                                ) {
+                                                  clearQuestionValidationTarget(
+                                                    fieldIndex,
+                                                    optionIndex,
+                                                    "choice",
+                                                  );
+                                                }
+                                              }}
                                               onChange={(
                                                 event,
                                               ) => {
@@ -2195,6 +2540,22 @@ export function ProductsPage({
                                               placeholder="e.g. Large"
                                               required
                                             />
+                                            {questionValidationTarget
+                                              ?.fieldIndex ===
+                                              fieldIndex &&
+                                              questionValidationTarget
+                                                .kind ===
+                                                "choice" &&
+                                              questionValidationTarget
+                                                .optionIndex ===
+                                                optionIndex && (
+                                                <small
+                                                  className="question-field-error"
+                                                  id={`question-choice-error-${fieldIndex}-${optionIndex}`}
+                                                >
+                                                  Enter a choice name.
+                                                </small>
+                                              )}
                                           </label>
 
                                           <label>
@@ -2437,13 +2798,43 @@ export function ProductsPage({
               <div className="two-cols conversational-price-grid">
                 <label>
                   Base price
-                  <div className="price-adjustment-input product-base-price-input single-border-input">
+                  <div
+                    className={[
+                      "price-adjustment-input",
+                      "product-base-price-input",
+                      "single-border-input",
+                      fieldValidationTarget === "price"
+                        ? "has-validation-error"
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
                     <span aria-hidden="true">GHS</span>
                     <input
+                      id="product-price"
                       type="number"
                       min="0.01"
                       step="0.01"
+                      inputMode="decimal"
                       value={productForm.price}
+                      aria-invalid={fieldValidationTarget === "price"}
+                      aria-describedby={
+                        fieldValidationTarget === "price"
+                          ? "product-price-error"
+                          : undefined
+                      }
+                      onInput={(event) => {
+                        const rawValue = event.currentTarget.value.trim();
+                        const parsedValue = Number(rawValue);
+                        if (
+                          rawValue &&
+                          Number.isFinite(parsedValue) &&
+                          parsedValue > 0
+                        ) {
+                          clearFieldValidationTarget("price");
+                        }
+                      }}
                       onChange={(event) =>
                         setProductForm(
                           (previous) => ({
@@ -2453,17 +2844,44 @@ export function ProductsPage({
                           }),
                         )
                       }
-                      placeholder="150.00"
+                      placeholder="e.g. 150.00"
                       required
                     />
                   </div>
+                  {fieldValidationTarget === "price" && (
+                    <small
+                      className="product-field-error"
+                      id="product-price-error"
+                    >
+                      Enter a valid product price.
+                    </small>
+                  )}
                 </label>
 
                 <label>
                   {availabilityCopy.label}
                   <input
+                    id="product-stock"
                     type="number"
                     min="0"
+                    step="1"
+                    inputMode="numeric"
+                    aria-invalid={fieldValidationTarget === "stock"}
+                    aria-describedby={
+                      fieldValidationTarget === "stock"
+                        ? "product-stock-error"
+                        : undefined
+                    }
+                    onInput={(event) => {
+                      const rawValue = event.currentTarget.value.trim();
+                      const parsedValue = Number(rawValue);
+                      if (
+                        !rawValue ||
+                        (Number.isInteger(parsedValue) && parsedValue >= 0)
+                      ) {
+                        clearFieldValidationTarget("stock");
+                      }
+                    }}
                     value={
                       productForm.stock_quantity
                     }
@@ -2483,6 +2901,14 @@ export function ProductsPage({
                   <small>
                     {availabilityCopy.help}
                   </small>
+                  {fieldValidationTarget === "stock" && (
+                    <small
+                      className="product-field-error"
+                      id="product-stock-error"
+                    >
+                      Enter a whole number of 0 or more, or leave this blank.
+                    </small>
+                  )}
                 </label>
               </div>
 
@@ -2599,8 +3025,11 @@ export function ProductsPage({
               </button>
             ) : (
               <button
-                type="submit"
+                type="button"
                 className="wizard-next-button"
+                onClick={() => {
+                  void handleSaveClick();
+                }}
                 disabled={
                   isProductSubmitDisabled() ||
                   isSubmitting

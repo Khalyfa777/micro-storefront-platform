@@ -8408,3 +8408,133 @@ body,
     line-height: 1.35 !important;
   }
 }
+
+/* === StorePlug unified field-level validation === */
+.product-step-form input[aria-invalid="true"],
+.product-step-form select[aria-invalid="true"],
+.product-step-form textarea[aria-invalid="true"] {
+  border-color: #dc2626;
+  background: #fffafa;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+  scroll-margin-top: 150px;
+}
+
+.product-step-form input[aria-invalid="true"]:focus,
+.product-step-form select[aria-invalid="true"]:focus,
+.product-step-form textarea[aria-invalid="true"]:focus {
+  border-color: #b91c1c;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.16);
+}
+
+.product-slug-input.has-validation-error,
+.product-base-price-input.has-validation-error {
+  border-color: #dc2626;
+  background: #fffafa;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+  scroll-margin-top: 150px;
+}
+
+.product-slug-input.has-validation-error:focus-within,
+.product-base-price-input.has-validation-error:focus-within {
+  border-color: #b91c1c;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.16);
+}
+
+.product-slug-input.has-validation-error input[aria-invalid="true"],
+.product-base-price-input.has-validation-error input[aria-invalid="true"] {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.product-fulfillment-options.has-validation-error {
+  border-radius: 15px;
+  outline: 2px solid #dc2626;
+  outline-offset: 4px;
+  scroll-margin-top: 140px;
+}
+
+.order-option-editor button.has-validation-error {
+  border-color: #dc2626;
+  color: #991b1b;
+  background: #fffafa;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+  scroll-margin-top: 150px;
+}
+
+.product-field-error,
+.question-field-error {
+  display: block;
+  margin-top: 8px;
+  color: #b91c1c;
+  font-size: 0.84rem;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.order-option-editor > .question-field-error {
+  margin: 10px 0 0;
+}
+
+@media (max-width: 700px) {
+  .product-step-form input[aria-invalid="true"],
+  .product-step-form select[aria-invalid="true"],
+  .product-step-form textarea[aria-invalid="true"],
+  .product-slug-input.has-validation-error,
+  .product-base-price-input.has-validation-error,
+  .product-fulfillment-options.has-validation-error,
+  .order-option-editor button.has-validation-error {
+    scroll-margin-top: 124px;
+  }
+}
+/* === StorePlug unified field-level validation end === */
+
+/* === StorePlug invalid-focus and fulfilment-state correction === */
+.product-step-form
+  input[aria-invalid="true"]:focus,
+.product-step-form
+  select[aria-invalid="true"]:focus,
+.product-step-form
+  textarea[aria-invalid="true"]:focus {
+  outline: none !important;
+  border-color: #b91c1c !important;
+  background: #fffafa !important;
+  box-shadow:
+    0 0 0 4px rgba(220, 38, 38, 0.18)
+    !important;
+}
+
+.product-step-form
+  .product-slug-input.has-validation-error:focus-within,
+.product-step-form
+  .product-base-price-input.has-validation-error:focus-within {
+  outline: none !important;
+  border-color: #b91c1c !important;
+  background: #fffafa !important;
+  box-shadow:
+    0 0 0 4px rgba(220, 38, 38, 0.18)
+    !important;
+}
+
+.product-step-form
+  .product-slug-input.has-validation-error
+  input[aria-invalid="true"]:focus,
+.product-step-form
+  .product-base-price-input.has-validation-error
+  input[aria-invalid="true"]:focus {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.product-step-form
+  .product-fulfillment-options.has-validation-error,
+.product-step-form
+  .product-fulfillment-options.has-validation-error:focus {
+  outline: 2px solid #dc2626 !important;
+  outline-offset: 4px;
+  box-shadow:
+    0 0 0 4px rgba(220, 38, 38, 0.12)
+    !important;
+}
+/* === StorePlug invalid-focus and fulfilment-state correction end === */
