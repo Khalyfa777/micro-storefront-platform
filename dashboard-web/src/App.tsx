@@ -1883,9 +1883,7 @@ try {
       productLimit === 1 ? "" : "s"
     }. Upgrade your plan to add more.`;
   }
-  async function saveProduct(e: React.FormEvent) {
-    e.preventDefault();
-
+  async function saveProduct() {
     if (!selectedStore) return;
 
     setError("");
