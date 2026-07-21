@@ -1,4 +1,14 @@
-import SafeProductImage from "../components/SafeProductImage";
+import { Suspense } from "react";
+
+import {
+  StorefrontCatalogueEmptyState,
+  StorefrontRouteErrorState,
+  StorefrontRouteLoadingState,
+} from "../components/StorefrontCatalogueStates";
+import StorefrontProductCard, {
+  normalizeStorefrontProduct,
+  type StorefrontProductCardData,
+} from "../components/StorefrontProductCard";
 import {
   resolveStorefrontApiBaseUrl,
   resolveStorefrontMediaUrl,
@@ -8,39 +18,7 @@ import { getWhatsAppNumber } from "../lib/phone";
 const API_URL =
   resolveStorefrontApiBaseUrl();
 
-function formatMoney(value: string | number) {
-  const amount = Number(value);
-
-  if (!Number.isFinite(amount)) {
-    return "GHS 0.00";
-  }
-
-  const fixed = amount.toFixed(2);
-  const [whole, decimal] = fixed.split(".");
-  const grouped = whole.replace(
-    /\B(?=(\d{3})+(?!\d))/g,
-    ",",
-  );
-
-  return `GHS ${grouped}.${decimal}`;
-}
-
-function getProductInitial(name?: string | null) {
-  const cleanName = String(name || "").trim();
-  return cleanName.charAt(0).toUpperCase() || "P";
-}
-
-type Product = {
-  id: string;
-  name: string;
-  slug: string;
-  description?: string | null;
-  image_url?: string | null;
-  price: string;
-  stock_quantity?: number | null;
-  is_active: boolean;
-  is_featured: boolean;
-};
+type UnknownRecord = Record<string, unknown>;
 
 type Store = {
   id: string;
@@ -59,89 +37,244 @@ type StoreFetchResult =
       ok: true;
       data: {
         store: Store;
-        products: Product[];
+        products: unknown[];
       };
     }
   | {
       ok: false;
       status: number;
       detail: string;
+      kind: "http" | "network" | "invalid";
     };
 
-async function getStore(storeSlug: string): Promise<StoreFetchResult> {
-  const res = await fetch(`${API_URL}/public/stores/${storeSlug}`, {
-    cache: "no-store",
-  });
+function isRecord(
+  value: unknown,
+): value is UnknownRecord {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value)
+  );
+}
 
-  const data = await res.json().catch(() => null);
+function readOptionalString(
+  value: unknown,
+): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
 
-  if (!res.ok) {
-    return {
-      ok: false,
-      status: res.status,
-      detail: data?.detail || "Store is not available.",
-    };
+  const normalized = value.trim();
+  return normalized || null;
+}
+
+function normalizeStore(
+  value: unknown,
+): Store | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const id = readOptionalString(value.id);
+  const slug = readOptionalString(value.slug);
+  const name = readOptionalString(value.name);
+
+  if (!id || !slug || !name) {
+    return null;
   }
 
   return {
-    ok: true,
-    data,
+    id,
+    slug,
+    name,
+    bio: readOptionalString(value.bio),
+    logo_url: readOptionalString(value.logo_url),
+    banner_url: readOptionalString(value.banner_url),
+    whatsapp_number: readOptionalString(
+      value.whatsapp_number,
+    ),
+    category: readOptionalString(value.category),
+    can_receive_online_payments:
+      value.can_receive_online_payments === true,
   };
 }
 
-export default async function StorePage({
-  params,
+function normalizeStorePayload(
+  value: unknown,
+): {
+  store: Store;
+  products: unknown[];
+} | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const store = normalizeStore(value.store);
+
+  if (!store || !Array.isArray(value.products)) {
+    return null;
+  }
+
+  return {
+    store,
+    products: value.products,
+  };
+}
+
+async function getStore(
+  storeSlug: string,
+): Promise<StoreFetchResult> {
+  try {
+    const res = await fetch(
+      `${API_URL}/public/stores/${storeSlug}`,
+      {
+        cache: "no-store",
+      },
+    );
+
+    const data: unknown = await res
+      .json()
+      .catch(() => null);
+
+    if (!res.ok) {
+      const detail =
+        isRecord(data) &&
+        typeof data.detail === "string"
+          ? data.detail
+          : "Store is not available.";
+
+      return {
+        ok: false,
+        status: res.status,
+        detail,
+        kind: "http",
+      };
+    }
+
+    const normalized = normalizeStorePayload(data);
+
+    if (!normalized) {
+      return {
+        ok: false,
+        status: 500,
+        detail: "Store data could not be loaded.",
+        kind: "invalid",
+      };
+    }
+
+    return {
+      ok: true,
+      data: normalized,
+    };
+  }
+  catch {
+    return {
+      ok: false,
+      status: 0,
+      detail: "Store data could not be loaded.",
+      kind: "network",
+    };
+  }
+}
+
+function getDisplayProducts(
+  products: unknown[],
+): StorefrontProductCardData[] {
+  const renderable = products
+    .map(normalizeStorefrontProduct)
+    .filter(
+      (
+        product,
+      ): product is StorefrontProductCardData =>
+        product !== null,
+    );
+
+  const featured = renderable.filter(
+    (product) => product.isFeatured,
+  );
+  const standard = renderable.filter(
+    (product) => !product.isFeatured,
+  );
+
+  return [...featured, ...standard];
+}
+
+function StoreUnavailableState({
+  unavailable,
 }: {
-  params: Promise<{ storeSlug: string }>;
+  unavailable: boolean;
 }) {
-  const { storeSlug } = await params;
+  return (
+    <main className="not-found">
+      <div className="not-found-card">
+        <h1>
+          {unavailable
+            ? "Store temporarily unavailable"
+            : "Store not found"}
+        </h1>
+
+        <p>
+          {unavailable
+            ? "This store is not accepting orders right now. Please check again later."
+            : "This store does not exist or is currently unavailable."}
+        </p>
+
+        <a className="btn btn-dark" href="/track">
+          Track order
+        </a>
+      </div>
+    </main>
+  );
+}
+
+async function StorePageContent({
+  storeSlug,
+}: {
+  storeSlug: string;
+}) {
   const result = await getStore(storeSlug);
 
-  if (!result.ok) {
-    const isUnavailable = "status" in result && result.status === 403;
+  if (result.ok === false) {
+    if (result.status === 403) {
+      return <StoreUnavailableState unavailable />;
+    }
+
+    if (result.status === 404) {
+      return <StoreUnavailableState unavailable={false} />;
+    }
 
     return (
-      <main className="not-found">
-        <div className="not-found-card">
-          <h1>
-            {isUnavailable ? "Store temporarily unavailable" : "Store not found"}
-          </h1>
-
-          <p>
-            {isUnavailable
-              ? "This store is not accepting orders right now. Please check again later."
-              : "This store does not exist or is currently unavailable."}
-          </p>
-
-          <a className="btn btn-dark" href="/track">
-            Track order
-          </a>
-        </div>
-      </main>
+      <StorefrontRouteErrorState
+        storeSlug={storeSlug}
+      />
     );
   }
 
-  const store: Store = result.data.store;
-  const products: Product[] = result.data.products || [];
+  const store = result.data.store;
+  const products = getDisplayProducts(
+    result.data.products,
+  );
   const whatsappNumber = getWhatsAppNumber(
     store.whatsapp_number,
   );
 
-  const bannerUrl =
-    resolveStorefrontMediaUrl(
-      store.banner_url,
-    );
+  const bannerUrl = resolveStorefrontMediaUrl(
+    store.banner_url,
+  );
 
-  const logoUrl =
-    resolveStorefrontMediaUrl(
-      store.logo_url,
-    );
+  const logoUrl = resolveStorefrontMediaUrl(
+    store.logo_url,
+  );
 
   return (
     <main className="store-page">
       <section className="store-profile-hero">
         {bannerUrl ? (
-          <img className="store-banner" src={bannerUrl} alt={store.name} />
+          <img
+            alt={store.name}
+            className="store-banner"
+            src={bannerUrl}
+          />
         ) : (
           <div className="store-banner store-banner-empty" />
         )}
@@ -150,9 +283,9 @@ export default async function StorePage({
           <div className="store-profile-summary">
             {logoUrl ? (
               <img
+                alt={store.name}
                 className="store-logo"
                 src={logoUrl}
-                alt={store.name}
               />
             ) : (
               <div className="store-logo store-logo-empty">
@@ -169,7 +302,8 @@ export default async function StorePage({
           </div>
 
           <p className="store-bio">
-            {store.bio || "Shop products and place orders directly."}
+            {store.bio ||
+              "Shop products and place orders directly."}
           </p>
 
           <div className="store-actions">
@@ -177,8 +311,8 @@ export default async function StorePage({
               <a
                 className="btn store-action-primary"
                 href={`https://wa.me/${whatsappNumber}`}
-                target="_blank"
                 rel="noreferrer"
+                target="_blank"
               >
                 Chat on WhatsApp
               </a>
@@ -194,72 +328,47 @@ export default async function StorePage({
         </div>
       </section>
 
-      <section className="products-section">
-        <div className="section-head">
-          <div>
-            <p className="eyebrow">Products</p>
-            <h2>Available items</h2>
-          </div>
-
+      <section className="storefront-catalogue">
+        <div className="storefront-catalogue-heading">
+          <h2>Products</h2>
           <span>
             {products.length}{" "}
             {products.length === 1
-              ? "item"
-              : "items"}
+              ? "product"
+              : "products"}
           </span>
         </div>
 
-        <div className="product-grid">
-          {products.map((product) => {
-            const stock = product.stock_quantity;
-            const hasStock = typeof stock === "number";
-            const isSoldOut = hasStock && stock <= 0;
-            const description = product.description?.trim();
-
-            return (
-              <article className="product-card" key={product.id}>
-
-                <SafeProductImage
-                  imageUrl={product.image_url}
-                  productName={product.name}
-                />
-
-                <div className="product-body">
-                  <div className="product-top">
-                    <h3>{product.name}</h3>
-                    {product.is_featured && <span>Featured</span>}
-                  </div>
-
-                  {description && <p>{description}</p>}
-
-                  <div className="product-meta-row">
-                    <strong>
-                      {formatMoney(product.price)}
-                    </strong>
-                    <span>
-                      {hasStock
-                        ? isSoldOut
-                          ? "Sold out"
-                          : `${stock} available`
-                        : "Available"}
-                    </span>
-                  </div>
-
-                  {isSoldOut ? (
-                    <button className="order-btn disabled" disabled>
-                      Sold out
-                    </button>
-                  ) : (
-                    <a className="order-btn" href={`/${store.slug}/order/${product.slug}`}>
-                      Order now
-                    </a>
-                  )}
-                </div>
-              </article>
-            );
-          })}
-        </div>
+        {products.length > 0 ? (
+          <div className="storefront-catalogue-grid">
+            {products.map((product) => (
+              <StorefrontProductCard
+                key={product.id}
+                product={product}
+                storeSlug={store.slug}
+              />
+            ))}
+          </div>
+        ) : (
+          <StorefrontCatalogueEmptyState />
+        )}
       </section>
     </main>
+  );
+}
+
+export default async function StorePage({
+  params,
+}: {
+  params: Promise<{ storeSlug: string }>;
+}) {
+  const { storeSlug } = await params;
+
+  return (
+    <Suspense
+      fallback={<StorefrontRouteLoadingState />}
+    >
+      <StorePageContent storeSlug={storeSlug} />
+    </Suspense>
   );
 }
