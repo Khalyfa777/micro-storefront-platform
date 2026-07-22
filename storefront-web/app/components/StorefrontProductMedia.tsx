@@ -3,6 +3,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type SyntheticEvent,
@@ -171,6 +172,9 @@ export default function StorefrontProductMedia({
     () => initialMediaState(resolvedSource),
   );
 
+  const imageRef =
+    useRef<HTMLImageElement | null>(null);
+
   useEffect(() => {
     setState((current) => {
       if (current.source === resolvedSource) {
@@ -179,6 +183,50 @@ export default function StorefrontProductMedia({
 
       return initialMediaState(resolvedSource);
     });
+  }, [resolvedSource]);
+
+  useEffect(() => {
+    const synchronizeImageState = () => {
+      const image = imageRef.current;
+
+      if (!image || !image.complete) {
+        return;
+      }
+
+      const {
+        naturalWidth,
+        naturalHeight,
+      } = image;
+
+      setState((current) =>
+        naturalWidth > 0 &&
+        naturalHeight > 0
+          ? getReadyMediaState(
+              current,
+              resolvedSource,
+              naturalWidth,
+              naturalHeight,
+            )
+          : getFailedMediaState(
+              current,
+              resolvedSource,
+            ),
+      );
+    };
+
+    synchronizeImageState();
+
+    window.addEventListener(
+      "pageshow",
+      synchronizeImageState,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "pageshow",
+        synchronizeImageState,
+      );
+    };
   }, [resolvedSource]);
 
   const effectiveState =
@@ -260,6 +308,7 @@ export default function StorefrontProductMedia({
               loading="lazy"
               onError={handleError}
               onLoad={handleLoad}
+              ref={imageRef}
               src={resolvedSource}
             />
           )}
